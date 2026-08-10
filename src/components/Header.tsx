@@ -1,19 +1,44 @@
+/**
+ * @file src/components/Header.tsx
+ * @description The main header component for the application. It displays the event title,
+ * connection status, and the primary navigation tabs for switching between different
+ * user roles/views (Audience, Moderator, Panel, Stage).
+ */
+
 import React from 'react';
 import { ViewRole } from '../types';
-import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Radio, Sparkles } from 'lucide-react';
+import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Radio, BookOpenCheck } from 'lucide-react';
 
+/**
+ * Props for the Header component.
+ */
 interface HeaderProps {
+  /** The currently active user role/view. */
   activeRole: ViewRole;
+  /** Function to set the active user role. */
   setActiveRole: (role: ViewRole) => void;
+  /** The main title of the conference event. */
   title: string;
+  /** The subtitle of the conference event. */
   subtitle: string;
+  /** Boolean indicating if the client is connected to the SSE stream. */
   isConnected: boolean;
+  /** Function to trigger a reset of the demo data on the server. */
   onResetDemo: () => void;
+  /** Count of questions with 'pending' status for the moderator badge. */
   pendingCount: number;
+  /** Count of questions with 'pushed' status for the panel badge. */
   pushedCount: number;
+  /** Count of questions with 'answering' status for the stage badge. */
   answeringCount: number;
 }
 
+/**
+ * The sticky header component displayed at the top of the application.
+ * It contains the event title, live status indicator, and view-switching tabs.
+ * @param {HeaderProps} props The props for the component.
+ * @returns {React.ReactElement} The rendered header.
+ */
 export const Header: React.FC<HeaderProps> = ({
   activeRole,
   setActiveRole,
@@ -30,11 +55,11 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between py-3 gap-3">
           
-          {/* Left Title & Live Indicator */}
+          {/* Left: Title & Live Indicator */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
-                <Sparkles className="w-5 h-5 text-white" />
+                <BookOpenCheck className="w-5 h-5 text-white" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
@@ -60,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* Navigation View Tabs */}
+          {/* Right: Navigation View Tabs & Reset Button */}
           <div className="flex items-center justify-between md:justify-end gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             <nav className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
               <button
@@ -120,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <Monitor className="w-3.5 h-3.5" />
                 <span>Stage Screen</span>
                 {answeringCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                  <span className="w-2 h-2 ml-2 rounded-full bg-rose-500 animate-ping"></span>
                 )}
               </button>
             </nav>
@@ -128,10 +153,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onResetDemo}
               className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
-              title="Reset sample data"
+              title="Reset sample data to its original state"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset Data</span>
+              <span>Reset Demo</span>
             </button>
           </div>
 

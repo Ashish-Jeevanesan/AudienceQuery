@@ -1,37 +1,54 @@
+/**
+ * @file src/components/PanelView.tsx
+ * @description The user interface for stage panelists. It provides a clean,
+ * dark-themed, high-legibility layout designed for tablets or laptops placed on
+ * the panel desk. It displays the currently active question being answered live
+ * (with a timer) and a queue of upcoming questions pushed by moderators.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Question, Category, QuestionStatus } from '../types';
-import { Mic, CheckCircle2, Clock, ThumbsUp, Filter, Eye, Sparkles, ChevronRight, MessageSquare, AlertCircle } from 'lucide-react';
+import { Mic, CheckCircle2, Clock, ThumbsUp, Eye, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
 
+/**
+ * Props for the PanelView component.
+ */
 interface PanelViewProps {
   questions: Question[];
   categories: Category[];
   onUpdateStatus: (questionId: string, status: QuestionStatus) => void;
 }
 
+/**
+ * The Panelist View component.
+ * @param {PanelViewProps} props The props for the component.
+ * @returns {React.ReactElement} The rendered panelist screen.
+ */
 export const PanelView: React.FC<PanelViewProps> = ({
   questions,
   categories,
   onUpdateStatus
 }) => {
+  // State variables for category filtering, contrast mode, and timer
   const [selectedCatId, setSelectedCatId] = useState('all');
   const [highContrastMode, setHighContrastMode] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // Currently answering question
+  // Find the single question currently being answered live on stage
   const currentAnswering = questions.find(q => q.status === 'answering');
 
-  // Questions pushed to panel queue
+  // Filter questions that are in the pushed queue waiting for the panel
   const pushedQuestions = questions.filter(q => q.status === 'pushed');
 
-  // Filtered queue
+  // Filter the panel queue based on the selected topic
   const filteredQueue = selectedCatId === 'all'
     ? pushedQuestions
     : pushedQuestions.filter(q => q.categoryId === selectedCatId);
 
-  // Completed / Answered
+  // Filter completed/answered questions for the history log
   const completedQuestions = questions.filter(q => q.status === 'answered');
 
-  // Live timer for currently answering question
+  // Effect to manage the live timer for the active question on stage
   useEffect(() => {
     if (!currentAnswering || !currentAnswering.answeringStartedAt) {
       setElapsedSeconds(0);
@@ -47,12 +64,20 @@ export const PanelView: React.FC<PanelViewProps> = ({
     return () => clearInterval(interval);
   }, [currentAnswering]);
 
+  /**
+   * Helper function to format seconds into MM:SS format.
+   * @param {number} totalSec Total seconds elapsed.
+   * @returns {string} Formatted MM:SS string.
+   */
   const formatTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  /**
+   * Helper function to get styling classes for topic badges.
+   */
   const getBadgeColor = (colorName: string) => {
     switch (colorName) {
       case 'indigo': return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
@@ -76,8 +101,8 @@ export const PanelView: React.FC<PanelViewProps> = ({
               <Mic className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">Panel Member Live Interface</h2>
-              <p className="text-xs text-slate-400">Moderator-pushed question queue for live panel answers</p>
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">Panel Screen</h2>
+              <p className="text-xs text-slate-400">Moderator-approved questions for the panel.</p>
             </div>
           </div>
 
@@ -95,7 +120,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
             </button>
 
             <span className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-indigo-400 font-bold">
-              {pushedQuestions.length} Questions Queued
+              {pushedQuestions.length} Questions in Queue
             </span>
           </div>
         </div>
@@ -104,7 +129,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
         <div className="space-y-3">
           <div className="flex items-center space-x-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-            <span>Now Answering Live on Stage</span>
+            <span>Now Answering Live</span>
           </div>
 
           {currentAnswering ? (
@@ -116,7 +141,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
                     {currentAnswering.categoryName}
                   </span>
                   <span className="px-3 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center">
-                    <ThumbsUp className="w-3.5 h-3.5 mr-1" /> {currentAnswering.upvotes} Upvotes
+                    <ThumbsUp className="w-3.5 h-3.5 mr-1" /> {currentAnswering.upvotes} Votes
                   </span>
                 </div>
 
@@ -133,7 +158,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800 relative z-10">
                 <div className="text-xs text-slate-400">
-                  Asked by: <strong className="text-slate-200 text-sm">{currentAnswering.authorName}</strong>
+                  From: <strong className="text-slate-200 text-sm">{currentAnswering.authorName}</strong>
                   {currentAnswering.moderatorNotes && (
                     <p className="text-indigo-300/80 mt-1 italic">
                       Moderator Note: {currentAnswering.moderatorNotes}
@@ -146,7 +171,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
                   className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 transition cursor-pointer"
                 >
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>Mark as Answered & Complete</span>
+                  <span>Mark as Answered</span>
                 </button>
               </div>
 
@@ -154,9 +179,9 @@ export const PanelView: React.FC<PanelViewProps> = ({
           ) : (
             <div className="bg-slate-900/60 rounded-3xl p-8 border border-slate-800 text-center space-y-3">
               <Sparkles className="w-8 h-8 text-slate-500 mx-auto" />
-              <h3 className="text-slate-300 font-bold text-lg">No question currently active on stage</h3>
+              <h3 className="text-slate-300 font-bold text-lg">No active question.</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Select a question from the Pushed Queue below and click <strong>"Start Answering Live"</strong> to present it on the projected stage screen.
+                Select a question from the queue below and click <strong>"Answer Live"</strong> to present it on stage.
               </p>
             </div>
           )}
@@ -167,19 +192,19 @@ export const PanelView: React.FC<PanelViewProps> = ({
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
-              <h3 className="font-bold text-white text-lg">Pushed Question Queue</h3>
+              <h3 className="font-bold text-white text-lg">Questions Queue</h3>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
                 {filteredQueue.length} Ready
               </span>
             </div>
 
-            {/* Category Filter */}
+            {/* Topic Filter */}
             <select
               value={selectedCatId}
               onChange={(e) => setSelectedCatId(e.target.value)}
               className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 font-medium outline-none"
             >
-              <option value="all">All Categories</option>
+              <option value="all">All Topics</option>
               {categories.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -189,8 +214,8 @@ export const PanelView: React.FC<PanelViewProps> = ({
           {filteredQueue.length === 0 ? (
             <div className="bg-slate-900/40 rounded-2xl p-8 text-center border border-slate-800/80">
               <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs font-medium">No questions waiting in the panel queue right now.</p>
-              <p className="text-slate-500 text-[11px] mt-1">The backend moderator team will push selected audience questions here.</p>
+              <p className="text-slate-400 text-xs font-medium">No questions in the queue.</p>
+              <p className="text-slate-500 text-[11px] mt-1">Approved questions will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -217,7 +242,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
                           )}
 
                           <span className="text-xs text-slate-400 font-semibold flex items-center">
-                            <ThumbsUp className="w-3 h-3 mr-1 text-indigo-400" /> {q.upvotes} Upvotes
+                            <ThumbsUp className="w-3 h-3 mr-1 text-indigo-400" /> {q.upvotes} Votes
                           </span>
                         </div>
 
@@ -226,10 +251,10 @@ export const PanelView: React.FC<PanelViewProps> = ({
                         </p>
 
                         <div className="text-xs text-slate-400">
-                          Asked by: <strong className="text-slate-200">{q.authorName}</strong>
+                          From: <strong className="text-slate-200">{q.authorName}</strong>
                           {q.moderatorNotes && (
                             <span className="ml-2 text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800 text-[11px]">
-                              Note: {q.moderatorNotes}
+                              Moderator Note: {q.moderatorNotes}
                             </span>
                           )}
                         </div>
@@ -241,7 +266,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
                         className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 flex items-center justify-center space-x-2 transition shrink-0 cursor-pointer"
                       >
                         <Mic className="w-4 h-4" />
-                        <span>Start Answering Live</span>
+                        <span>Answer Live</span>
                         <ChevronRight className="w-4 h-4" />
                       </button>
 
@@ -257,7 +282,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
         {/* Answered Questions History */}
         {completedQuestions.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-slate-800">
-            <h3 className="font-bold text-slate-400 text-xs uppercase tracking-wider">Completed Questions ({completedQuestions.length})</h3>
+            <h3 className="font-bold text-slate-400 text-xs uppercase tracking-wider">Answered Questions ({completedQuestions.length})</h3>
             <div className="space-y-2 opacity-75">
               {completedQuestions.map((q) => (
                 <div key={q.id} className="bg-slate-900/50 rounded-xl p-3 border border-slate-800 text-xs flex items-center justify-between text-slate-300">

@@ -1,7 +1,18 @@
+/**
+ * @file src/components/ModeratorView.tsx
+ * @description The moderator dashboard component. It serves as "command central",
+ * allowing administrators to review incoming questions from the audience, approve or reject them,
+ * edit details (re-categorize, add notes, set priority), and push questions to the
+ * panel queue. It also manages event-wide configuration settings and category definitions.
+ */
+
 import React, { useState } from 'react';
 import { Question, Category, ConferenceEvent, QuestionStatus } from '../types';
 import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, ThumbsUp, Tag, AlertCircle } from 'lucide-react';
 
+/**
+ * Props for the ModeratorView component.
+ */
 interface ModeratorViewProps {
   questions: Question[];
   categories: Category[];
@@ -13,6 +24,11 @@ interface ModeratorViewProps {
   onUpdateEvent: (data: Partial<ConferenceEvent>) => void;
 }
 
+/**
+ * The Moderator Control Panel component.
+ * @param {ModeratorViewProps} props The props for the component.
+ * @returns {React.ReactElement} The rendered moderator dashboard.
+ */
 export const ModeratorView: React.FC<ModeratorViewProps> = ({
   questions,
   categories,
@@ -23,31 +39,32 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onCreateCategory,
   onUpdateEvent
 }) => {
+  // State variables for filter tabs, search, and sorting
   const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'upvotes' | 'recent' | 'priority'>('upvotes');
 
-  // Edit Modal State
+  // Edit Modal State for editing a specific question
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [editText, setEditText] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editIsPriority, setEditIsPriority] = useState(false);
 
-  // Settings Modal
+  // Settings Panel State (toggles visibility of the configuration card)
   const [showSettings, setShowSettings] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('indigo');
 
-  // Metrics
+  // Metrics for the dashboard counters
   const pendingCount = questions.filter(q => q.status === 'pending').length;
   const pushedCount = questions.filter(q => q.status === 'pushed').length;
   const answeringCount = questions.filter(q => q.status === 'answering').length;
   const answeredCount = questions.filter(q => q.status === 'answered').length;
   const approvedCount = questions.filter(q => q.status === 'approved').length;
 
-  // Filter questions
+  // Filter questions based on the active tab, category, and search query
   let filtered = questions.filter(q => {
     if (activeTab === 'pending') return q.status === 'pending';
     if (activeTab === 'pushed') return q.status === 'pushed';
@@ -62,16 +79,16 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   }
 
   if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
+    const query = searchQuery.toLowerCase();
     filtered = filtered.filter(item => 
-      item.text.toLowerCase().includes(q) ||
-      item.authorName.toLowerCase().includes(q) ||
-      item.categoryName.toLowerCase().includes(q) ||
-      (item.moderatorNotes && item.moderatorNotes.toLowerCase().includes(q))
+      item.text.toLowerCase().includes(query) ||
+      item.authorName.toLowerCase().includes(query) ||
+      item.categoryName.toLowerCase().includes(query) ||
+      (item.moderatorNotes && item.moderatorNotes.toLowerCase().includes(query))
     );
   }
 
-  // Sorting
+  // Sort the filtered questions based on user selection
   filtered.sort((a, b) => {
     if (sortBy === 'priority') {
       if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
@@ -83,6 +100,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
+  /**
+   * Opens the edit modal for a selected question.
+   */
   const openEditModal = (q: Question) => {
     setEditingQuestion(q);
     setEditText(q.text);
@@ -91,6 +111,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setEditIsPriority(q.isPriority);
   };
 
+  /**
+   * Saves the changes made in the edit modal.
+   */
   const saveEdit = () => {
     if (!editingQuestion) return;
     onEditQuestion(editingQuestion.id, {
@@ -102,6 +125,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setEditingQuestion(null);
   };
 
+  /**
+   * Handles the creation of a new topic category.
+   */
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -109,6 +135,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setNewCatName('');
   };
 
+  /**
+   * Helper function to get styling based on category color.
+   */
   const getBadgeColor = (colorName: string) => {
     switch (colorName) {
       case 'indigo': return 'bg-indigo-500/10 text-indigo-700 border-indigo-200';
@@ -127,10 +156,10 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <ShieldCheck className="w-6 h-6 text-indigo-400" />
-            <h2 className="text-xl font-bold tracking-tight">Moderator Bridge Command Dashboard</h2>
+            <h2 className="text-xl font-bold tracking-tight">Moderator Control Panel</h2>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            Bridge between audience submissions and panel live display. Review, curate, and push questions directly to panel members.
+            Review incoming questions, curate the feed, and push approved questions to the panel queue.
           </p>
         </div>
 
@@ -152,7 +181,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition"
           >
             <Settings className="w-4 h-4" />
-            <span>Event Settings</span>
+            <span>Conference Settings</span>
           </button>
         </div>
       </div>
@@ -160,39 +189,39 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       {/* Metrics Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending Inbox</span>
+          <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Review Inbox</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-900">{pendingCount}</span>
-            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-bold">Needs Review</span>
+            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-bold">Pending</span>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-indigo-200 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Pushed to Panel</span>
+          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Panel Queue</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-indigo-600">{pushedCount}</span>
-            <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-bold">In Panel Queue</span>
+            <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-bold">Pushed</span>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Live Answering</span>
+          <span className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Live on Stage</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-rose-600">{answeringCount}</span>
-            <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full font-bold animate-pulse">On Stage</span>
+            <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full font-bold animate-pulse">Active</span>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Approved Public</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Public Feed</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-800">{approvedCount}</span>
-            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">Feed Visible</span>
+            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">Visible</span>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm col-span-2 sm:col-span-1 flex flex-col justify-between">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Answered Total</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Answered</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-slate-800">{answeredCount}</span>
             <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">Completed</span>
@@ -206,7 +235,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           <div className="flex items-center justify-between border-b pb-3">
             <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
               <Settings className="w-5 h-5 text-indigo-600" />
-              <span>Event Configuration & Category Management</span>
+              <span>Conference Settings & Topics</span>
             </h3>
             <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
           </div>
@@ -214,7 +243,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Event Branding */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Conference Details</h4>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Conference Info</h4>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Event Title</label>
                 <input
@@ -237,12 +266,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
             {/* Add Custom Category */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add New Question Category</h4>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add New Topic</h4>
               <form onSubmit={handleAddCategory} className="space-y-3">
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Category Name (e.g., Keynote Q&A)"
+                    placeholder="Topic Name (e.g., Parenting)"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
@@ -291,7 +320,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>Inbox Pending</span>
+            <span>Review Inbox</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/20 font-extrabold">{pendingCount}</span>
           </button>
 
@@ -303,7 +332,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>Pushed to Panel</span>
+            <span>Panel Queue</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-extrabold">{pushedCount}</span>
           </button>
 
@@ -315,7 +344,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <span>Approved Public Feed</span>
+            <span>Public Feed</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-extrabold">{approvedCount}</span>
           </button>
 
@@ -361,7 +390,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Search questions or author..."
+              placeholder="Search questions, authors, or notes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
@@ -374,7 +403,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white outline-none"
             >
-              <option value="all">All Categories</option>
+              <option value="all">All Topics</option>
               {categories.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -385,8 +414,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               onChange={(e) => setSortBy(e.target.value as any)}
               className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white outline-none"
             >
-              <option value="upvotes">Sort by Upvotes</option>
-              <option value="priority">Sort by Priority / Starred</option>
+              <option value="upvotes">Sort by Votes</option>
+              <option value="priority">Sort by Priority</option>
               <option value="recent">Sort by Newest</option>
             </select>
           </div>
@@ -399,8 +428,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
           <MessageSquare className="w-10 h-10 text-slate-300 mx-auto" />
-          <h4 className="text-slate-700 font-semibold">No questions found in this tab</h4>
-          <p className="text-xs text-slate-400">Incoming submissions from the audience will appear here automatically in real time.</p>
+          <h4 className="text-slate-700 font-semibold">No questions in this view.</h4>
+          <p className="text-xs text-slate-400">Questions from the audience will appear in the 'Review Inbox' tab.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -432,12 +461,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
                       {q.isPriority && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-slate-950">
-                          <Star className="w-3 h-3 mr-1 fill-slate-950" /> Priority Star
+                          <Star className="w-3 h-3 mr-1 fill-slate-950" /> High Priority
                         </span>
                       )}
 
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                        <ThumbsUp className="w-3 h-3 inline mr-1 text-slate-500" /> {q.upvotes} Upvotes
+                        <ThumbsUp className="w-3 h-3 inline mr-1 text-slate-500" /> {q.upvotes} Votes
                       </span>
 
                       <span className="text-xs text-slate-400">
@@ -450,10 +479,10 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     </p>
 
                     <div className="flex items-center space-x-3 text-xs text-slate-500">
-                      <span>Submitted by: <strong className="text-slate-800">{q.authorName}</strong></span>
+                      <span>From: <strong className="text-slate-800">{q.authorName}</strong></span>
                       {q.moderatorNotes && (
                         <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-mono text-[11px]">
-                          Note: {q.moderatorNotes}
+                          Moderator Note: {q.moderatorNotes}
                         </span>
                       )}
                     </div>
@@ -471,20 +500,20 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         title="Push to Panel Member interface"
                       >
                         <Send className="w-3.5 h-3.5" />
-                        <span>Push to Panel</span>
+                        <span>Send to Panel</span>
                       </button>
                     )}
 
                     {q.status === 'pushed' && (
                       <span className="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center space-x-1 border border-indigo-200">
                         <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>In Panel Queue</span>
+                        <span>In Panel's Queue</span>
                       </span>
                     )}
 
                     {q.status === 'answering' && (
                       <span className="px-3 py-1.5 rounded-xl bg-rose-500 text-white font-bold text-xs flex items-center space-x-1 animate-pulse">
-                        <span>🎙️ Live on Stage</span>
+                        <span>🎙️ Live</span>
                       </span>
                     )}
 
@@ -561,7 +590,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-200 animate-fadeIn">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="font-bold text-slate-900 text-base">Edit Question Submission</h3>
+              <h3 className="font-bold text-slate-900 text-base">Edit Question</h3>
               <button onClick={() => setEditingQuestion(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
@@ -577,7 +606,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Re-assign Category</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Change Topic</label>
                 <select
                   value={editCategoryId}
                   onChange={(e) => setEditCategoryId(e.target.value)}
@@ -590,7 +619,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Moderator Private Note (Internal)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Internal Moderator Note</label>
                 <input
                   type="text"
                   placeholder="e.g., Direct to panelist David, or merge with q-104"
@@ -607,7 +636,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   onChange={(e) => setEditIsPriority(e.target.checked)}
                   className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                 />
-                <span className="text-xs font-semibold text-slate-800">Mark as High Priority Starred</span>
+                <span className="text-xs font-semibold text-slate-800">Mark as High Priority</span>
               </label>
             </div>
 
