@@ -34,7 +34,6 @@ export function useRealTimeQnA() {
     subtitle: 'Christian Family Conference 2026',
     joinCode: 'LIVE4C',
     allowAnonymous: true,
-    allowUpvotes: true,
     isAcceptingQuestions: true
   });
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -114,7 +113,33 @@ export function useRealTimeQnA() {
   }, []);
 
   /**
-   * Submits a new question to the server.
+   * Captures device and network metadata for the current session.
+   * @returns {object} Device and network information.
+   */
+  const captureDeviceMetadata = useCallback(() => {
+    // Device info from navigator
+    const deviceInfo = {
+      deviceType: /mobile|android|iphone|ipod/i.test(navigator.userAgent)
+        ? 'mobile'
+        : /ipad|tablet/i.test(navigator.userAgent)
+        ? 'tablet'
+        : 'desktop',
+      os: navigator.platform,
+      browser: navigator.userAgent.split(' ').pop() || 'unknown',
+      screenResolution: `${window.screen.width}x${window.screen.height}`
+    };
+
+    // Network info from navigator (limited - IP requires backend)
+    const networkInfo = {
+      userAgent: navigator.userAgent,
+      language: navigator.language
+    };
+
+    return { deviceInfo, networkInfo };
+  }, []);
+
+  /**
+   * Submits a new question to the server with device metadata.
    * @param params - The details of the question to submit.
    * @returns {Promise<Question>} The newly created question.
    */
@@ -125,17 +150,25 @@ export function useRealTimeQnA() {
     categoryId: string;
   }) => {
     try {
+      // Capture device metadata
+      const { deviceInfo, networkInfo } = captureDeviceMetadata();
+
       const res = await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...params, sessionId })
+        body: JSON.stringify({
+          ...params,
+          sessionId,
+          deviceInfo,
+          networkInfo
+        })
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Failed to submit question');
       }
       const newQ: Question = await res.json();
-      
+
       // Store submitted question ID in local storage to track "My Questions".
       setMySubmittedIds(prev => {
         const updated = [newQ.id, ...prev];
@@ -148,23 +181,7 @@ export function useRealTimeQnA() {
       alert(err.message || 'Submission failed. Please try again.');
       throw err;
     }
-  }, [sessionId]);
-
-  /**
-   * Sends an upvote request for a specific question to the server.
-   * @param {string} questionId - The ID of the question to upvote.
-   */
-  const upvoteQuestion = useCallback(async (questionId: string) => {
-    try {
-      await fetch(`/api/questions/${questionId}/upvote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
-      });
-    } catch (err) {
-      console.error('Upvote error:', err);
-    }
-  }, [sessionId]);
+  }, [sessionId, captureDeviceMetadata]);
 
   /**
    * Updates the status of a question (for moderators and panelists).
@@ -273,7 +290,6 @@ export function useRealTimeQnA() {
     sessionId,
     mySubmittedIds,
     submitQuestion,
-    upvoteQuestion,
     updateStatus,
     editQuestion,
     deleteQuestion,

@@ -13,6 +13,7 @@ import { AudienceView } from './components/AudienceView';
 import { ModeratorView } from './components/ModeratorView';
 import { PanelView } from './components/PanelView';
 import { StageView } from './components/StageView';
+import type { ViewRole } from './types';
 
 /**
  * The main application component.
@@ -31,7 +32,6 @@ export default function App() {
     sessionId,
     mySubmittedIds,
     submitQuestion,
-    upvoteQuestion,
     updateStatus,
     editQuestion,
     deleteQuestion,
@@ -44,6 +44,18 @@ export default function App() {
   const pendingCount = questions.filter(q => q.status === 'pending').length;
   const pushedCount = questions.filter(q => q.status === 'pushed').length;
   const answeringCount = questions.filter(q => q.status === 'answering').length;
+
+  // Determine if the current user has admin access (moderator role)
+  const isAdmin = activeRole === 'moderator';
+
+  // Restrict role changes: only allow switching to audience role freely.
+  // Other roles (moderator, panel, stage) require admin privileges.
+  const canSwitchRole = (targetRole: ViewRole) => {
+    // Audience role is always accessible
+    if (targetRole === 'audience') return true;
+    // Other roles require admin access
+    return isAdmin;
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
@@ -58,6 +70,7 @@ export default function App() {
         pendingCount={pendingCount}
         pushedCount={pushedCount}
         answeringCount={answeringCount}
+        isAdmin={isAdmin}
       />
 
       {/* Main View Container - Renders the view based on the active role */}
@@ -68,13 +81,12 @@ export default function App() {
             categories={categories}
             conferenceEvent={conferenceEvent}
             onSubmit={submitQuestion}
-            onUpvote={upvoteQuestion}
             sessionId={sessionId}
             mySubmittedIds={mySubmittedIds}
           />
         )}
 
-        {activeRole === 'moderator' && (
+        {isAdmin && activeRole === 'moderator' && (
           <ModeratorView
             questions={questions}
             categories={categories}
@@ -87,7 +99,8 @@ export default function App() {
           />
         )}
 
-        {activeRole === 'panel' && (
+        {/* Panel view - admin access required */}
+        {isAdmin && activeRole === 'panel' && (
           <PanelView
             questions={questions}
             categories={categories}
@@ -95,7 +108,8 @@ export default function App() {
           />
         )}
 
-        {activeRole === 'stage' && (
+        {/* Stage view - admin access required */}
+        {isAdmin && activeRole === 'stage' && (
           <StageView
             questions={questions}
             categories={categories}

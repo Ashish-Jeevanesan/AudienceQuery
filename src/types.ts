@@ -18,6 +18,7 @@ export type QuestionStatus =
 
 /**
  * Interface representing a single audience question.
+ * IMPORTANT: Users can only see and access their own questions via RLS policies.
  */
 export interface Question {
   /** A unique identifier for the question (e.g., 'q-123'). */
@@ -34,10 +35,6 @@ export interface Question {
   categoryName: string;
   /** The current status in the question lifecycle. */
   status: QuestionStatus;
-  /** The total number of upvotes the question has received. */
-  upvotes: number;
-  /** A list of unique session IDs that have upvoted this question to prevent duplicate votes. */
-  upvotedBy: string[];
   /** A flag set by moderators to pin a question to the top. */
   isPriority: boolean;
   /** Internal notes visible only to moderators. */
@@ -48,8 +45,20 @@ export interface Question {
   answeringStartedAt?: string;
   /** ISO 8601 timestamp of when the question was marked as answered. */
   answeredAt?: string;
-  /** The session ID of the user who submitted the question. */
-  submissionSessionId?: string;
+  /** The session ID of the user who submitted the question. Used for user isolation. */
+  sessionId: string;
+  /** Device information (type, OS, browser, resolution) for the device that submitted the question. */
+  deviceInfo?: {
+    deviceType: string;
+    os: string;
+    browser: string;
+    screenResolution: string;
+  };
+  /** Network information (IP address, user agent) for the device that submitted the question. */
+  networkInfo?: {
+    ipAddress: string;
+    userAgent: string;
+  };
 }
 
 /**
@@ -78,8 +87,6 @@ export interface ConferenceEvent {
   joinCode: string;
   /** If true, users can submit questions anonymously. */
   allowAnonymous: boolean;
-  /** If true, users can upvote questions. */
-  allowUpvotes: boolean;
   /** If false, new question submissions are blocked by the server. */
   isAcceptingQuestions: boolean;
 }

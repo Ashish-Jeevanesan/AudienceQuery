@@ -31,6 +31,8 @@ interface HeaderProps {
   pushedCount: number;
   /** Count of questions with 'answering' status for the stage badge. */
   answeringCount: number;
+  /** Whether the current user has admin (moderator) access. */
+  isAdmin: boolean;
 }
 
 /**
@@ -48,7 +50,8 @@ export const Header: React.FC<HeaderProps> = ({
   onResetDemo,
   pendingCount,
   pushedCount,
-  answeringCount
+  answeringCount,
+  isAdmin
 }) => {
   return (
     <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-lg">
@@ -100,54 +103,78 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Audience</span>
               </button>
 
-              <button
-                onClick={() => setActiveRole('moderator')}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
-                  activeRole === 'moderator'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Moderator</span>
-                {pendingCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
+              {/* Moderator tab - only visible to admins */}
+              {isAdmin ? (
+                <button
+                  onClick={() => setActiveRole('moderator')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
+                    activeRole === 'moderator'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Moderator</span>
+                  {pendingCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Moderator</span>
+                </div>
+              )}
 
-              <button
-                onClick={() => setActiveRole('panel')}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
-                  activeRole === 'panel'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Mic className="w-3.5 h-3.5" />
-                <span>Panel</span>
-                {pushedCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-400 text-slate-950">
-                    {pushedCount}
-                  </span>
-                )}
-              </button>
+              {/* Panel tab - only visible to admins */}
+              {isAdmin ? (
+                <button
+                  onClick={() => setActiveRole('panel')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
+                    activeRole === 'panel'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Panel</span>
+                  {pushedCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-400 text-slate-950">
+                      {pushedCount}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Panel</span>
+                </div>
+              )}
 
-              <button
-                onClick={() => setActiveRole('stage')}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeRole === 'stage'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                <span>Stage Screen</span>
-                {answeringCount > 0 && (
-                  <span className="w-2 h-2 ml-2 rounded-full bg-rose-500 animate-ping"></span>
-                )}
-              </button>
+              {/* Stage tab - only visible to admins */}
+              {isAdmin ? (
+                <button
+                  onClick={() => setActiveRole('stage')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    activeRole === 'stage'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Stage Screen</span>
+                  {answeringCount > 0 && (
+                    <span className="w-2 h-2 ml-2 rounded-full bg-rose-500 animate-ping"></span>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Stage Screen</span>
+                </div>
+              )}
             </nav>
 
             <button

@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { Question, Category, ConferenceEvent } from '../types';
-import { ThumbsUp, Send, User, CheckCircle2, MessageSquare, Clock, Flame, UserCheck, AlertCircle } from 'lucide-react';
+import { Send, User, CheckCircle2, MessageSquare, Clock, AlertCircle, UserCheck } from 'lucide-react';
 
 /**
  * Props for the AudienceView component.
@@ -17,7 +17,6 @@ interface AudienceViewProps {
   categories: Category[];
   conferenceEvent: ConferenceEvent;
   onSubmit: (params: { text: string; authorName: string; isAnonymous: boolean; categoryId: string }) => Promise<Question>;
-  onUpvote: (questionId: string) => void;
   sessionId: string;
   mySubmittedIds: string[];
 }
@@ -32,10 +31,11 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   categories,
   conferenceEvent,
   onSubmit,
-  onUpvote,
   sessionId,
   mySubmittedIds
 }) => {
+  // Users can only see their own questions (user isolation)
+  const userQuestions = questions.filter(q => q.sessionId === sessionId);
   // State for the question submission form
   const [questionText, setQuestionText] = useState('');
   const [authorName, setAuthorName] = useState('');
@@ -45,8 +45,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // State for filtering the live question feed
-  const [feedTab, setFeedTab] = useState<'top' | 'recent' | 'mine'>('top');
   const [filterCatId, setFilterCatId] = useState<string>('all');
 
   /**
@@ -75,32 +73,16 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
     }
   };
 
-  // Filter questions to be shown in the public feed.
-  const publicQuestions = questions.filter(q => 
-    // Show questions that are publicly visible
-    ['approved', 'pushed', 'answering', 'answered'].includes(q.status) || 
-    // Always show the user their own submitted questions, regardless of status
-    mySubmittedIds.includes(q.id)
-  );
-
-  let filteredQuestions = [...publicQuestions];
-
-  // Apply "My Questions" filter
-  if (feedTab === 'mine') {
-    filteredQuestions = questions.filter(q => mySubmittedIds.includes(q.id) || q.submissionSessionId === sessionId);
-  }
+  // IMPORTANT: Users can only see their own questions (user isolation via sessionId)
+  let filteredQuestions = [...userQuestions];
 
   // Apply category filter
   if (filterCatId !== 'all') {
     filteredQuestions = filteredQuestions.filter(q => q.categoryId === filterCatId);
   }
 
-  // Apply sorting
-  if (feedTab === 'top') {
-    filteredQuestions.sort((a, b) => b.upvotes - a.upvotes);
-  } else if (feedTab === 'recent') {
-    filteredQuestions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
+  // Sort by creation date (newest first)
+  filteredQuestions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   /**
    * Gets the appropriate Tailwind CSS classes for a category badge color.
@@ -277,38 +259,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0">
-            
-            {/* Feed Tabs */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-medium">
-              <button
-                onClick={() => setFeedTab('top')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-lg transition ${
-                  feedTab === 'top' ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Flame className="w-3.5 h-3.5" />
-                <span>Top</span>
-              </button>
-              <button
-                onClick={() => setFeedTab('recent')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-lg transition ${
-                  feedTab === 'recent' ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Recent</span>
-              </button>
-              <button
-                onClick={() => setFeedTab('mine')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-lg transition ${
-                  feedTab === 'mine' ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>My Questions</span>
-              </button>
-            </div>
-
             {/* Category Filter Dropdown */}
             <select
               value={filterCatId}
@@ -336,7 +286,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
           <div className="space-y-3">
             {filteredQuestions.map((q) => {
               const category = categories.find(c => c.id === q.categoryId);
-              const isUpvotedByMe = q.upvotedBy.includes(sessionId);
 
               return (
                 <div
@@ -376,19 +325,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                         <span>{new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
-
-                    {/* Upvote Button */}
-                    <button
-                      onClick={() => onUpvote(q.id)}
-                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition min-w-[56px] ${
-                        isUpvotedByMe
-                          ? 'bg-indigo-50 border-indigo-300 text-indigo-600 shadow-sm'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600 hover:border-indigo-200'
-                      }`}
-                    >
-                      <ThumbsUp className={`w-4 h-4 mb-0.5 ${isUpvotedByMe ? 'fill-current' : ''}`} />
-                      <span className="text-xs font-bold">{q.upvotes}</span>
-                    </button>
 
                   </div>
                 </div>
