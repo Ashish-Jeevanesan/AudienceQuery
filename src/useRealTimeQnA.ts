@@ -10,17 +10,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Question, Category, ConferenceEvent, QuestionStatus, ViewRole } from './types';
 
 /**
- * Retrieves a persistent session ID from localStorage or generates a new one.
- * This is crucial for tracking user-specific actions like upvotes and submitted questions.
- * @returns {string} The unique session ID.
+ * Retrieves a persistent session ID from localStorage.
+ * If none exists, returns null (will be generated server-side).
+ * @returns {string | null} The cached session ID or null.
  */
-function getSessionId(): string {
-  let id = localStorage.getItem('qna_session_id');
-  if (!id) {
-    id = `sess-${Math.random().toString(36).substring(2, 9)}-${Date.now()}`;
-    localStorage.setItem('qna_session_id', id);
-  }
-  return id;
+function getCachedSessionId(): string | null {
+  return localStorage.getItem('qna_session_id');
+}
+
+/**
+ * Stores the session ID in localStorage for persistence across page reloads.
+ * @param {string} id The session ID to store.
+ */
+function cacheSessionId(id: string): void {
+  localStorage.setItem('qna_session_id', id);
 }
 
 /**
@@ -47,16 +50,41 @@ export function useRealTimeQnA() {
     }
   });
 
-  const sessionId = useRef<string>(getSessionId()).current;
+  const sessionIdRef = useRef<string | null>(getCachedSessionId());
 
   // Effect for fetching initial state and setting up the SSE connection.
   useEffect(() => {
     let eventSource: EventSource | null = null;
 
+    // Generates a new session ID from the server (if not cached).
+    const ensureSessionId = async () => {
+      if (sessionIdRef.current) {
+        console.log('✓ Using cached session ID');
+        return sessionIdRef.current;
+      }
+
+      try {
+        const res = await fetch('/api/session', { method: 'POST' });
+        if (res.ok) {
+          const { sessionId } = await res.json();
+          sessionIdRef.current = sessionId;
+          cacheSessionId(sessionId);
+          console.log('✓ New session ID generated:', sessionId);
+          return sessionId;
+        } else {
+          throw new Error('Failed to generate session');
+        }
+      } catch (err) {
+        console.error('Error generating session ID:', err);
+        throw err;
+      }
+    };
+
     // Fetches the initial state snapshot from the server.
     const fetchInitialState = async () => {
       try {
-        const res = await fetch('/api/state');
+        const sessionId = await ensureSessionId();
+        const res = await fetch(`/api/state?sessionId=${encodeURIComponent(sessionId)}`);
         if (res.ok) {
           const data = await res.json();
           setQuestions(data.questions || []);
@@ -153,12 +181,16 @@ export function useRealTimeQnA() {
       // Capture device metadata
       const { deviceInfo, networkInfo } = captureDeviceMetadata();
 
+      if (!sessionIdRef.current) {
+        throw new Error('Session not initialized. Please refresh the page.');
+      }
+
       const res = await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...params,
-          sessionId,
+          sessionId: sessionIdRef.current,
           deviceInfo,
           networkInfo
         })
@@ -181,7 +213,7 @@ export function useRealTimeQnA() {
       alert(err.message || 'Submission failed. Please try again.');
       throw err;
     }
-  }, [sessionId, captureDeviceMetadata]);
+  }, [captureDeviceMetadata]);
 
   /**
    * Updates the status of a question (for moderators and panelists).
@@ -287,7 +319,7 @@ export function useRealTimeQnA() {
     isConnected,
     activeRole,
     setActiveRole,
-    sessionId,
+    sessionId: sessionIdRef.current || 'unknown',
     mySubmittedIds,
     submitQuestion,
     updateStatus,

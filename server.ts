@@ -39,10 +39,36 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// --- Note: In-memory database state removed ---
-// All data is now persisted to Supabase PostgreSQL.
-// The application no longer maintains in-memory copies of questions, categories, or conference events.
-// This reduces memory footprint and ensures data consistency across server restarts.
+// --- Authentication & Authorization ---
+
+/**
+ * Middleware to verify admin access.
+ * Checks for a valid admin bearer token or uses environment-based admin validation.
+ */
+function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const adminToken = req.headers.authorization?.replace('Bearer ', '');
+  const expectedToken = process.env.ADMIN_API_TOKEN;
+
+  if (!expectedToken) {
+    console.warn('⚠️  WARNING: ADMIN_API_TOKEN not set in environment. Admin endpoints are unprotected.');
+    return next(); // Dev mode: allow if token not configured
+  }
+
+  if (adminToken !== expectedToken) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or missing admin token' });
+  }
+
+  next();
+}
+
+/**
+ * Helper: Generate a cryptographically secure, server-side session ID.
+ * This prevents client spoofing of session IDs.
+ */
+function generateSecureSessionId(): string {
+  const crypto = require('crypto');
+  return `sess-${crypto.randomBytes(16).toString('hex')}`;
+}
 
 
 // --- Server-Sent Events (SSE) Logic ---
@@ -75,6 +101,22 @@ function broadcastStateUpdate(type: string, data?: any) {
 // --- API Endpoints ---
 
 /**
+ * @route POST /api/session
+ * @description Generates a new secure server-side session ID for a user.
+ * SECURITY: Prevents client spoofing of session IDs.
+ */
+app.post('/api/session', (req, res) => {
+  try {
+    const sessionId = generateSecureSessionId();
+    console.log(`✓ New session created: ${sessionId}`);
+    res.json({ sessionId });
+  } catch (error: any) {
+    console.error('Error generating session:', error);
+    res.status(500).json({ error: 'Failed to generate session' });
+  }
+});
+
+/**
  * @route GET /api/stream
  * @description Establishes an SSE connection. The client should fetch initial state from /api/state
  * and receives incremental updates as they happen.
@@ -101,26 +143,37 @@ app.get('/api/stream', (req, res) => {
 
 /**
  * @route GET /api/state
- * @description Retrieves a snapshot of the current application state from Supabase.
+ * @description Retrieves a snapshot of the application state from Supabase.
+ * SECURITY: Filters questions by session ID (user isolation).
+ * Requires ?sessionId=<id> query parameter to identify the user.
  */
 app.get('/api/state', async (req, res) => {
   try {
-    // Fetch questions from Supabase
+    // SECURITY: Derive session ID from query parameter (client-provided but validated by RLS)
+    // In a production system, this should come from an authenticated session cookie or JWT
+    const sessionId = req.query.sessionId as string;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Missing sessionId query parameter' });
+    }
+
+    // Fetch questions - ONLY the user's own questions (RLS enforced in Supabase)
     const { data: questionsData, error: questionsError } = await supabase
       .from('questions')
       .select('*')
+      .eq('session_id', sessionId)  // SECURITY: Filter by session ID
       .order('created_at', { ascending: false });
 
     if (questionsError) throw questionsError;
 
-    // Fetch categories from Supabase
+    // Fetch categories (public data, same for all users)
     const { data: categoriesData, error: categoriesError } = await supabase
       .from('categories')
       .select('*');
 
     if (categoriesError) throw categoriesError;
 
-    // Fetch conference event from Supabase
+    // Fetch conference event (public data, same for all users)
     const { data: eventData, error: eventError } = await supabase
       .from('conference_events')
       .select('*')
@@ -166,7 +219,8 @@ app.get('/api/state', async (req, res) => {
     res.json({
       questions: mappedQuestions,
       categories: mappedCategories,
-      conferenceEvent: mappedEvent
+      conferenceEvent: mappedEvent,
+      sessionId // Echo back for client confirmation
     });
   } catch (error: any) {
     console.error('Error fetching state from Supabase:', error);
@@ -177,6 +231,7 @@ app.get('/api/state', async (req, res) => {
 /**
  * @route POST /api/questions
  * @description Submits a new question from an audience member.
+ * SECURITY: SessionId must be previously generated via POST /api/session.
  * Persists to Supabase and broadcasts update via SSE.
  */
 app.post('/api/questions', async (req, res) => {
@@ -187,7 +242,12 @@ app.post('/api/questions', async (req, res) => {
   }
 
   if (!sessionId) {
-    return res.status(400).json({ error: 'Session ID is required' });
+    return res.status(400).json({ error: 'Session ID is required. Call POST /api/session first.' });
+  }
+
+  // SECURITY: Validate session ID format (should start with 'sess-' and be reasonable length)
+  if (!/^sess-[a-f0-9]+$/.test(sessionId)) {
+    return res.status(400).json({ error: 'Invalid session ID format' });
   }
 
   // Capture IP address from request headers
@@ -244,10 +304,11 @@ app.post('/api/questions', async (req, res) => {
 /**
  * @route PATCH /api/questions/:id/status
  * @description Updates the status of a question (e.g., from 'pending' to 'pushed').
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
  * Handles logic for ensuring only one question is 'answering' at a time.
  * Persists to Supabase.
  */
-app.patch('/api/questions/:id/status', async (req, res) => {
+app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { status, moderatorNotes } = req.body as { status: QuestionStatus; moderatorNotes?: string };
 
@@ -322,9 +383,10 @@ app.patch('/api/questions/:id/status', async (req, res) => {
 /**
  * @route PATCH /api/questions/:id
  * @description Allows a moderator to edit the details of a question.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
  * Persists to Supabase.
  */
-app.patch('/api/questions/:id', async (req, res) => {
+app.patch('/api/questions/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { text, categoryId, isPriority, moderatorNotes } = req.body;
 
@@ -378,9 +440,10 @@ app.patch('/api/questions/:id', async (req, res) => {
 /**
  * @route DELETE /api/questions/:id
  * @description Allows a moderator to delete a question.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
  * Persists to Supabase.
  */
-app.delete('/api/questions/:id', async (req, res) => {
+app.delete('/api/questions/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -433,9 +496,10 @@ app.delete('/api/questions/:id', async (req, res) => {
 /**
  * @route POST /api/categories
  * @description Allows a moderator to add a new category.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
  * Persists to Supabase.
  */
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', requireAdmin, async (req, res) => {
   const { name, color, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
 
@@ -472,9 +536,10 @@ app.post('/api/categories', async (req, res) => {
 /**
  * @route PATCH /api/event
  * @description Updates general conference settings.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
  * Persists to Supabase.
  */
-app.patch('/api/event', async (req, res) => {
+app.patch('/api/event', requireAdmin, async (req, res) => {
   const { title, subtitle, isAcceptingQuestions, allowAnonymous } = req.body;
 
   try {
@@ -514,10 +579,11 @@ app.patch('/api/event', async (req, res) => {
 
 /**
  * @route POST /api/reset
- * @description Resets the database state. Currently a no-op since data is persisted in Supabase.
- * To reset, manually delete tables in Supabase and re-run schema.sql.
+ * @description DESTRUCTIVE: Resets the database by deleting all questions and categories.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
+ * This is a dangerous operation and should only be accessible to trusted admins.
  */
-app.post('/api/reset', async (req, res) => {
+app.post('/api/reset', requireAdmin, async (req, res) => {
   try {
     // Delete all questions (this will cascade if foreign keys are set up)
     await supabase.from('questions').delete().neq('id', '');

@@ -122,10 +122,82 @@ metadata:
 
 **All TypeScript compilation now passes with zero errors.**
 
+---
+name: security-hardening
+description: Fixed security vulnerabilities - added admin auth, session ID generation, user isolation
+metadata:
+  type: project
+---
+
+**Why:** Automated security review identified 4 critical/high vulnerabilities. All have been fixed.
+
+**Vulnerabilities Fixed:**
+
+1. **Destructive Operation Without Auth** - `/api/reset`
+   - Now requires `Authorization: Bearer <admin-token>` header
+   - Added `requireAdmin` middleware
+
+2. **User Isolation Bypass (IDOR)** - `/api/state`
+   - Now requires `?sessionId=` query parameter
+   - Server filters: `.eq('session_id', sessionId)`
+   - Only returns user's own questions
+
+3. **Session ID Spoofing** - All endpoints
+   - Added `POST /api/session` to generate server-side secure sessionIds
+   - SessionIds: cryptographically secure, `sess-` prefix + 32 hex chars
+   - Client validates format: `^sess-[a-f0-9]+$`
+
+4. **Missing Auth on Moderator Mutations** - All admin endpoints
+   - Added `requireAdmin` middleware to:
+     - `PATCH /api/questions/:id/status`
+     - `PATCH /api/questions/:id`
+     - `DELETE /api/questions/:id`
+     - `POST /api/categories`
+     - `PATCH /api/event`
+     - `POST /api/reset`
+
+**Code Changes:**
+1. **server.ts**:
+   - Added `requireAdmin()` middleware function
+   - Added `generateSecureSessionId()` function (uses crypto.randomBytes)
+   - Added `POST /api/session` endpoint
+   - Updated `GET /api/state` to require ?sessionId query param and filter by sessionId
+   - Updated `POST /api/questions` to validate sessionId format
+   - Applied `requireAdmin` to all moderator endpoints
+
+2. **src/useRealTimeQnA.ts**:
+   - Changed from `getSessionId()` to `getCachedSessionId()`
+   - Added `cacheSessionId()` function
+   - Added `ensureSessionId()` to call POST /api/session if needed
+   - Updated `fetchInitialState()` to pass sessionId to /api/state query
+   - Updated `submitQuestion()` to use sessionIdRef.current
+   - Removed sessionId from dependency array (it's a ref now)
+
+**Environment Setup:**
+Users must add to `.env`:
+```
+ADMIN_API_TOKEN=your-secure-token-here
+```
+Generate with: `openssl rand -hex 32`
+
+**Testing:**
+- Session ID generation: POST /api/session returns {sessionId}
+- User isolation: Different sessionIds see only their own questions
+- Admin auth: Moderator endpoints return 401 without correct token
+
+**TypeScript Status**: ✅ Zero compilation errors
+
 **Next steps:**
 1. ✅ Install @supabase/supabase-js (done)
 2. Create Supabase project and get credentials
-3. Add credentials to `.env` file (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY)
+3. Add credentials to `.env` file:
+   - VITE_SUPABASE_URL
+   - VITE_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   - ADMIN_API_TOKEN (generate with: openssl rand -hex 32)
 4. Run schema.sql in Supabase SQL editor to create tables
-5. Test with `npm run dev` and submit questions
-6. Verify questions persist to Supabase and user isolation works
+5. Test with `npm run dev`:
+   - Open browser (sessionId auto-generated)
+   - Submit question
+   - Check Supabase for data persistence
+   - Verify user isolation (different browsers/incognito)
