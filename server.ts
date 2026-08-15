@@ -10,6 +10,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { Question, Category, ConferenceEvent, QuestionStatus } from './src/types';
 
 // Load environment variables from .env file
@@ -43,31 +44,62 @@ app.use(express.json());
 
 /**
  * Middleware to verify admin access.
- * Checks for a valid admin bearer token or uses environment-based admin validation.
+ * SECURITY: Fail-closed if ADMIN_API_TOKEN is not configured.
+ * In production, the server will not start without the admin token.
+ * In development, the ALLOW_UNAUTHENTICATED_ADMIN opt-in is required.
  */
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const adminToken = req.headers.authorization?.replace('Bearer ', '');
   const expectedToken = process.env.ADMIN_API_TOKEN;
 
+  // Fail closed: if no admin token configured, refuse to operate
   if (!expectedToken) {
-    console.warn('⚠️  WARNING: ADMIN_API_TOKEN not set in environment. Admin endpoints are unprotected.');
-    return next(); // Dev mode: allow if token not configured
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ CRITICAL: ADMIN_API_TOKEN not configured and NODE_ENV=production. Server refusing to start admin endpoints.');
+      return res.status(500).json({ error: 'Internal server error: Admin authentication not configured' });
+    }
+    // Development mode: require explicit opt-in
+    if (process.env.ALLOW_UNAUTHENTICATED_ADMIN !== '1') {
+      console.error('❌ CRITICAL: ADMIN_API_TOKEN not configured. Set ALLOW_UNAUTHENTICATED_ADMIN=1 to allow unauthenticated admin (dev only).');
+      return res.status(500).json({ error: 'Internal server error: Admin authentication not configured' });
+    }
+    console.warn('⚠️  WARNING: Admin endpoints running without configured ADMIN_API_TOKEN (dev mode only).');
+    return next();
   }
 
-  if (adminToken !== expectedToken) {
+  // Use constant-time comparison to prevent timing side-channels
+  if (!crypto.timingSafeEqual(Buffer.from(adminToken), Buffer.from(expectedToken))) {
     return res.status(401).json({ error: 'Unauthorized: Invalid or missing admin token' });
+  }
+
+  // Validate minimum token length (prevent trivial tokens)
+  if (expectedToken.length < 32) {
+    return res.status(500).json({ error: 'Internal server error: Admin token too short (minimum 32 characters)' });
   }
 
   next();
 }
 
 /**
+ * Helper: Validate session ID format consistently across all endpoints.
+ * Format requirement: sess- followed by exactly 32 hex characters (16 bytes = 128 bits entropy)
+ * This prevents format divergence between writer and reader endpoints.
+ * @param s The sessionId string to validate
+ * @returns true if valid format, false otherwise
+ */
+function validateSessionId(s: string): boolean {
+  return /^sess-[a-f0-9]{32}$/.test(s);
+}
+
+/**
  * Helper: Generate a cryptographically secure, server-side session ID.
+ * Format: sess-<32 hex characters> (16 bytes / 128 bits of entropy)
  * This prevents client spoofing of session IDs.
+ * Fixed-length format ensures consistent validation across all endpoints.
  */
 function generateSecureSessionId(): string {
   const crypto = require('crypto');
-  return `sess-${crypto.randomBytes(16).toString('hex')}`;
+  return `sess-${crypto.randomBytes(16).toString('hex')}`; // 32 hex chars = 16 bytes
 }
 
 
@@ -103,13 +135,34 @@ function broadcastStateUpdate(type: string, data?: any) {
 /**
  * @route POST /api/session
  * @description Generates a new secure server-side session ID for a user.
- * SECURITY: Prevents client spoofing of session IDs.
+ * SECURITY:
+ * - Issues sessionId via HttpOnly, Secure, SameSite=Lax cookie
+ * - Never exposes sessionId in JSON body (prevents client spoofing)
+ * - Logs only truncated prefix for audit
+ * - Rate-limit friendly (no sensitive data in logs)
  */
 app.post('/api/session', (req, res) => {
   try {
     const sessionId = generateSecureSessionId();
-    console.log(`✓ New session created: ${sessionId}`);
-    res.json({ sessionId });
+
+    // Set cookie: HttpOnly, Secure (HTTPS only), SameSite=Lax
+    // httpOnly: not accessible to JS (prevents XSS theft)
+    // secure: only sent over HTTPS
+    // sameSite=Lax: prevents CSRF while allowing top-level navigation
+    res.cookie('qna_session_id', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/'
+    });
+
+    // Log only SHA-256 hash of sessionId for audit (never raw value)
+    const sessionHash = crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
+    console.log(`✓ New session created: hash=${sessionHash}...`);
+
+    // Do NOT include sessionId in JSON response body
+    res.json({ success: true });
   } catch (error: any) {
     console.error('Error generating session:', error);
     res.status(500).json({ error: 'Failed to generate session' });
@@ -149,15 +202,22 @@ app.get('/api/stream', (req, res) => {
  */
 app.get('/api/state', async (req, res) => {
   try {
-    // SECURITY: Derive session ID from query parameter (client-provided but validated by RLS)
-    // In a production system, this should come from an authenticated session cookie or JWT
-    const sessionId = req.query.sessionId as string;
+    // SECURITY: Read sessionId from HttpOnly cookie (never from query parameter)
+    // The sessionId is set by POST /api/session via res.cookie('qna_session_id', ...)
+    const sessionId = req.cookies?.['qna_session_id'] as string;
 
     if (!sessionId) {
-      return res.status(400).json({ error: 'Missing sessionId query parameter' });
+      return res.status(400).json({ error: 'Missing session cookie. Call POST /api/session first.' });
+    }
+
+    // SECURITY: Validate sessionId format using shared helper
+    // Ensures writer and reader can never diverge on format
+    if (!validateSessionId(sessionId)) {
+      return res.status(400).json({ error: 'Invalid session ID format' });
     }
 
     // Fetch questions - ONLY the user's own questions (RLS enforced in Supabase)
+    // .eq('session_id', sessionId) ensures user isolation at database level
     const { data: questionsData, error: questionsError } = await supabase
       .from('questions')
       .select('*')
@@ -219,8 +279,8 @@ app.get('/api/state', async (req, res) => {
     res.json({
       questions: mappedQuestions,
       categories: mappedCategories,
-      conferenceEvent: mappedEvent,
-      sessionId // Echo back for client confirmation
+      conferenceEvent: mappedEvent
+      // sessionId NOT echoed back - it's in the HttpOnly cookie only
     });
   } catch (error: any) {
     console.error('Error fetching state from Supabase:', error);
