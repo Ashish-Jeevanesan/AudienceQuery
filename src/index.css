@@ -2,52 +2,82 @@
 @import "tailwindcss";
 
 @layer base {
+  /* ============================================
+     LIGHT MODE - ROOT DEFAULTS
+     ============================================ */
   :root {
+    /* SURFACES */
     --background: 255, 255, 255;
     --background-secondary: 250, 251, 252;
     --surface: 255, 255, 255;
     --surface-secondary: 248, 250, 252;
     --surface-tertiary: 241, 245, 249;
     --surface-elevated: 255, 255, 255;
-    --surface-hover: 248, 250, 252;
-    --text-primary: 15, 23, 42;
-    --text-secondary: 71, 85, 105;
-    --text-tertiary: 120, 113, 108;
-    --text-muted: 148, 163, 184;
-    --text-disabled: 203, 213, 225;
-    --text-inverse: 248, 250, 252;
+    --surface-hover: 245, 248, 252;
+
+    /* TEXT - CRITICAL FIX: Must be readable in LIGHT mode */
+    --text-primary: 15, 23, 42;        /* slate-900 - very dark */
+    --text-secondary: 44, 62, 80;      /* slate-700 - stronger than before */
+    --text-tertiary: 71, 85, 105;      /* slate-600 - was --text-secondary */
+    --text-muted: 107, 114, 128;       /* slate-500 - less prominent */
+    --text-disabled: 148, 163, 184;    /* slate-400 - clearly disabled */
+    --text-inverse: 248, 250, 252;     /* light for dark backgrounds */
+
+    /* FORM CONTROLS */
     --input-background: 255, 255, 255;
-    --input-border: 203, 213, 225;
-    --input-border-hover: 148, 163, 184;
-    --input-border-focus: 79, 70, 229;
+    --input-border: 191, 199, 212;     /* slate-300 - stronger than before */
+    --input-border-hover: 148, 163, 184; /* slate-400 */
+    --input-border-focus: 79, 70, 229;   /* indigo - primary accent */
     --input-text: 15, 23, 42;
-    --input-placeholder: 148, 163, 184;
-    --border: 226, 232, 240;
-    --border-strong: 203, 213, 225;
+    --input-placeholder: 107, 114, 128;  /* slate-500 */
+
+    /* BORDERS & DIVIDERS */
+    --border: 226, 232, 240;           /* slate-200 */
+    --border-strong: 203, 213, 225;    /* slate-300 */
     --divider: 226, 232, 240;
-    --hero-background: 249, 250, 251;
+
+    /* HERO SECTION */
+    --hero-background: 255, 255, 255;
     --hero-accent-background: 243, 232, 255;
     --hero-text-primary: 15, 23, 42;
-    --hero-text-secondary: 71, 85, 105;
-    --primary: 79, 70, 229;
-    --primary-hover: 67, 56, 202;
-    --primary-active: 55, 48, 163;
-    --primary-light: 224, 231, 255;
+    --hero-text-secondary: 44, 62, 80;
+
+    /* STATUS INDICATOR */
+    --status-live: 34, 197, 94;        /* green - very visible */
+
+    /* BRAND COLORS */
+    --primary: 79, 70, 229;            /* indigo-600 */
+    --primary-hover: 67, 56, 202;      /* indigo-700 */
+    --primary-active: 55, 48, 163;     /* indigo-800 */
+    --primary-light: 224, 231, 255;    /* indigo-100 */
     --primary-text: 255, 255, 255;
-    --accent: 245, 158, 11;
-    --accent-hover: 217, 119, 6;
+
+    --accent: 245, 158, 11;            /* amber-400 */
+    --accent-hover: 217, 119, 6;       /* amber-700 */
     --accent-light: 255, 251, 235;
-    --accent-text: 120, 53, 15;
+    --accent-text: 78, 35, 8;          /* amber-900 */
+
+    /* SEMANTIC */
     --success: 34, 197, 94;
     --success-light: 220, 252, 231;
     --warning: 234, 179, 8;
     --warning-light: 254, 243, 199;
     --danger: 239, 68, 68;
     --danger-light: 254, 226, 226;
+
+    /* FOCUS & INTERACTIVE */
     --focus-ring: 79, 70, 229;
     --focus-ring-opacity: 0.5;
+
+    /* NAVIGATION ACTIVE STATE */
+    --nav-active-background: 224, 231, 255; /* indigo-100 - light but visible */
+    --nav-active-text: 79, 70, 229;         /* indigo-600 - matches primary */
+    --nav-active-icon: 79, 70, 229;
   }
 
+  /* ============================================
+     DARK MODE OVERRIDES
+     ============================================ */
   [data-theme="dark"] {
     --background: 8, 15, 29;
     --background-secondary: 15, 23, 42;
@@ -56,42 +86,56 @@
     --surface-tertiary: 45, 60, 82;
     --surface-elevated: 30, 41, 59;
     --surface-hover: 40, 53, 76;
-    --text-primary: 248, 250, 252;
-    --text-secondary: 203, 213, 225;
-    --text-tertiary: 148, 163, 184;
-    --text-muted: 100, 116, 139;
-    --text-disabled: 71, 85, 105;
+
+    --text-primary: 248, 250, 252;     /* light slate */
+    --text-secondary: 203, 213, 225;   /* light slate-300 */
+    --text-tertiary: 148, 163, 184;    /* slate-400 */
+    --text-muted: 100, 116, 139;       /* slate-600 */
+    --text-disabled: 71, 85, 105;      /* slate-700 */
     --text-inverse: 15, 23, 42;
+
     --input-background: 20, 31, 50;
     --input-border: 45, 60, 82;
     --input-border-hover: 71, 85, 105;
     --input-border-focus: 129, 140, 248;
     --input-text: 248, 250, 252;
     --input-placeholder: 100, 116, 139;
+
     --border: 45, 60, 82;
     --border-strong: 71, 85, 105;
     --divider: 45, 60, 82;
+
     --hero-background: 15, 23, 42;
     --hero-accent-background: 30, 41, 59;
     --hero-text-primary: 248, 250, 252;
     --hero-text-secondary: 203, 213, 225;
+
+    --status-live: 52, 211, 153;
+
     --primary: 129, 140, 248;
     --primary-hover: 110, 122, 245;
     --primary-active: 99, 102, 241;
     --primary-light: 49, 46, 129;
     --primary-text: 248, 250, 252;
+
     --accent: 251, 191, 36;
     --accent-hover: 217, 119, 6;
     --accent-light: 30, 24, 8;
     --accent-text: 15, 23, 42;
+
     --success: 52, 211, 153;
     --success-light: 5, 46, 22;
     --warning: 250, 204, 21;
     --warning-light: 51, 41, 8;
     --danger: 248, 113, 113;
     --danger-light: 63, 13, 13;
+
     --focus-ring: 129, 140, 248;
     --focus-ring-opacity: 0.6;
+
+    --nav-active-background: 49, 46, 129;   /* indigo-900 - darker background */
+    --nav-active-text: 129, 140, 248;       /* indigo-400 - light text */
+    --nav-active-icon: 129, 140, 248;
   }
 
   html {
@@ -112,67 +156,33 @@
     line-height: 1.1;
   }
 
-  h1 {
-    @apply text-5xl lg:text-6xl;
-  }
-
-  h2 {
-    @apply text-4xl lg:text-5xl;
-  }
-
-  h3 {
-    @apply text-3xl lg:text-4xl;
-  }
-
-  h4 {
-    @apply text-2xl;
-  }
+  h1 { @apply text-5xl lg:text-6xl; }
+  h2 { @apply text-4xl lg:text-5xl; }
+  h3 { @apply text-3xl lg:text-4xl; }
+  h4 { @apply text-2xl; }
 
   code, pre {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
 @layer utilities {
-  .bg-surface {
-    background-color: rgb(var(--surface));
-  }
+  .bg-surface { background-color: rgb(var(--surface)); }
+  .bg-surface-elevated { background-color: rgb(var(--surface-elevated)); }
+  .bg-surface-secondary { background-color: rgb(var(--surface-secondary)); }
+  .bg-surface-hover { background-color: rgb(var(--surface-hover)); }
 
-  .bg-surface-elevated {
-    background-color: rgb(var(--surface-elevated));
-  }
+  .text-primary { color: rgb(var(--text-primary)); }
+  .text-secondary { color: rgb(var(--text-secondary)); }
+  .text-tertiary { color: rgb(var(--text-tertiary)); }
+  .text-muted { color: rgb(var(--text-muted)); }
+  .text-disabled { color: rgb(var(--text-disabled)); }
 
-  .bg-surface-secondary {
-    background-color: rgb(var(--surface-secondary));
-  }
-
-  .bg-surface-hover {
-    background-color: rgb(var(--surface-hover));
-  }
-
-  .text-primary {
-    color: rgb(var(--text-primary));
-  }
-
-  .text-secondary {
-    color: rgb(var(--text-secondary));
-  }
-
-  .text-tertiary {
-    color: rgb(var(--text-tertiary));
-  }
-
-  .text-muted {
-    color: rgb(var(--text-muted));
-  }
-
-  .border-divider {
-    border-color: rgb(var(--border));
-  }
-
-  .border-divider-strong {
-    border-color: rgb(var(--border-strong));
-  }
+  .border-divider { border-color: rgb(var(--border)); }
+  .border-divider-strong { border-color: rgb(var(--border-strong)); }
 
   .input-base {
     background-color: rgb(var(--input-background));

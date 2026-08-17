@@ -48,19 +48,15 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-background transition-colors duration-300">
-      {/* HERO SECTION */}
-      <div className="relative overflow-hidden" style={{ backgroundColor: `rgb(var(--hero-background))` }}>
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full" style={{ background: `radial-gradient(circle, rgba(var(--primary), 0.1), transparent)` }}></div>
-        </div>
-
-        <div className="relative px-4 py-20 sm:px-6 lg:px-8 lg:py-32">
-          <div className="max-w-4xl mx-auto space-y-8 text-center">
+    <div className="min-h-screen" style={{ backgroundColor: `rgb(var(--background))` }}>
+      {/* HERO SECTION - REFINED PROPORTIONS */}
+      <div className="relative overflow-hidden border-b border-divider" style={{ backgroundColor: `rgb(var(--hero-background))` }}>
+        <div className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+          <div className="max-w-4xl mx-auto space-y-6 text-center">
             {/* Event Code Badge */}
             <div className="inline-flex items-center justify-center px-4 py-2.5 rounded-full border" style={{
               backgroundColor: `rgb(var(--surface))`,
-              borderColor: `rgb(var(--border))`
+              borderColor: `rgb(var(--border-strong))`
             }}>
               <span className="text-sm font-semibold" style={{ color: `rgb(var(--text-secondary))` }}>
                 Event Code: <span className="font-bold ml-2" style={{ color: `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
@@ -73,7 +69,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
             </h1>
 
             {/* Subtitle */}
-            <p className="text-xl sm:text-2xl leading-relaxed" style={{ color: `rgb(var(--hero-text-secondary))` }}>
+            <p className="text-lg sm:text-xl" style={{ color: `rgb(var(--hero-text-secondary))` }}>
               {conferenceEvent.subtitle}
             </p>
           </div>
@@ -81,11 +77,11 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="relative max-w-2xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+      <div className="relative max-w-2xl mx-auto px-4 py-14 sm:px-6 lg:px-8">
         {/* FORM CARD */}
         <div className="card overflow-hidden">
           {/* Card Header */}
-          <div className="px-6 sm:px-8 py-8 bg-primary" style={{ backgroundColor: `rgb(var(--primary))` }}>
+          <div className="px-6 sm:px-8 py-8" style={{ backgroundColor: `rgb(var(--primary))` }}>
             <div className="flex items-center space-x-4">
               <div className="p-3 rounded-lg" style={{ backgroundColor: `rgba(255, 255, 255, 0.2)` }}>
                 <MessageSquare className="w-6 h-6 text-white" />
@@ -109,7 +105,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                   <span className="text-white text-sm font-bold">✓</span>
                 </div>
                 <span className="font-medium" style={{ color: `rgb(var(--success))` }}>
-                  Question submitted successfully! We appreciate your participation.
+                  Question submitted successfully!
                 </span>
               </div>
             )}
@@ -130,9 +126,9 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
             )}
 
             {/* FORM */}
-            <form onSubmit={handleSubmit} className="space-y-7">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Question Textarea */}
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
                   Your Question
                 </label>
@@ -166,7 +162,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                       {isAnonymous && <span className="text-white text-sm font-bold">✓</span>}
                     </div>
                   </div>
-                  <span className="ml-3 font-semibold text-primary group-hover:opacity-80 transition" style={{ color: `rgb(var(--text-primary))` }}>
+                  <span className="ml-3 font-semibold group-hover:opacity-80 transition" style={{ color: `rgb(var(--text-primary))` }}>
                     Ask anonymously
                   </span>
                 </label>
@@ -174,7 +170,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
               {/* Name Input */}
               {!isAnonymous && (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
                     Your Name
                   </label>
@@ -191,17 +187,18 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
               {/* Topic Select */}
               {categories.length > 0 && (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
                     Topic (Optional)
                   </label>
                   <select
                     value={selectedCategoryId}
                     onChange={(e) => setSelectedCategoryId(e.target.value)}
-                    className="input-base w-full appearance-none cursor-pointer bg-no-repeat"
+                    className="input-base w-full appearance-none cursor-pointer"
                     style={{
                       backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234f46e5' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
                       backgroundPosition: 'right 1rem center',
+                      backgroundRepeat: 'no-repeat',
                       paddingRight: '2.5rem'
                     }}
                     disabled={isSubmitting}
@@ -228,12 +225,12 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
         </div>
 
         {/* INFO MESSAGE */}
-        <div className="mt-12 text-center">
+        <div className="mt-10 text-center">
           <div className="inline-block px-6 py-4 rounded-xl border card" style={{
             backgroundColor: `rgb(var(--surface-secondary))`
           }}>
             <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
-              ✨ Your question will be reviewed by our moderators and featured during the live session if selected.
+              ✨ Your question will be reviewed by our moderators and featured if selected.
             </p>
           </div>
         </div>
