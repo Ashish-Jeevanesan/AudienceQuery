@@ -49,23 +49,26 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
   return (
     <div className="min-h-screen bg-primary transition-colors duration-300">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden bg-secondary border-b border-divider">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-primary to-brand-primary-dark opacity-10"></div>
+      {/* Hero Section - Light mode: indigo tinted, Dark mode: dark background */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-indigo-50 via-indigo-50/50 to-primary dark:from-slate-800 dark:via-slate-800/50 dark:to-primary border-b border-divider">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/5 to-brand-accent/5 dark:from-brand-primary/10 dark:to-brand-accent/10"></div>
         
         <div className="relative px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
           <div className="max-w-3xl mx-auto space-y-6 text-center">
-            <div className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-tertiary border border-divider-strong">
-              <span className="text-sm font-semibold text-secondary">
+            {/* Event Code Badge */}
+            <div className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Event Code: <span className="font-bold text-brand-accent ml-2">{conferenceEvent.joinCode}</span>
               </span>
             </div>
             
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-primary leading-tight">
+            {/* Title */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white leading-tight">
               {conferenceEvent.title}
             </h1>
             
-            <p className="text-xl sm:text-2xl text-secondary">
+            {/* Subtitle */}
+            <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300">
               {conferenceEvent.subtitle}
             </p>
           </div>
@@ -74,7 +77,9 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
       {/* Main Content */}
       <div className="relative max-w-2xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        {/* Form Card */}
         <div className="bg-secondary rounded-2xl shadow-md border border-divider overflow-hidden">
+          {/* Card Header - Gradient */}
           <div className="bg-gradient-to-r from-brand-primary to-brand-primary-dark px-6 sm:px-8 py-8">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-white/20 rounded-lg">
@@ -87,6 +92,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
             </div>
           </div>
 
+          {/* Card Body */}
           <div className="px-6 sm:px-8 py-8 space-y-6">
             {submittedSuccess && (
               <div className="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center space-x-3">
@@ -175,6 +181,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
           </div>
         </div>
 
+        {/* Footer Info */}
         <div className="mt-12 text-center">
           <div className="inline-block bg-secondary rounded-xl shadow-md border border-divider px-6 py-4">
             <p className="text-sm text-secondary">Your question will be reviewed by moderators and featured during the live session</p>
