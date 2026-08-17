@@ -48,117 +48,162 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-primary transition-colors duration-300">
-      {/* Hero Section - Light mode: indigo tinted, Dark mode: dark background */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-indigo-50 via-indigo-50/50 to-primary dark:from-slate-800 dark:via-slate-800/50 dark:to-primary border-b border-divider">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/5 to-brand-accent/5 dark:from-brand-primary/10 dark:to-brand-accent/10"></div>
-        
-        <div className="relative px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-          <div className="max-w-3xl mx-auto space-y-6 text-center">
+    <div className="min-h-screen bg-background transition-colors duration-300">
+      {/* HERO SECTION */}
+      <div className="relative overflow-hidden" style={{ backgroundColor: `rgb(var(--hero-background))` }}>
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full" style={{ background: `radial-gradient(circle, rgba(var(--primary), 0.1), transparent)` }}></div>
+        </div>
+
+        <div className="relative px-4 py-20 sm:px-6 lg:px-8 lg:py-32">
+          <div className="max-w-4xl mx-auto space-y-8 text-center">
             {/* Event Code Badge */}
-            <div className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Event Code: <span className="font-bold text-brand-accent ml-2">{conferenceEvent.joinCode}</span>
+            <div className="inline-flex items-center justify-center px-4 py-2.5 rounded-full border" style={{
+              backgroundColor: `rgb(var(--surface))`,
+              borderColor: `rgb(var(--border))`
+            }}>
+              <span className="text-sm font-semibold" style={{ color: `rgb(var(--text-secondary))` }}>
+                Event Code: <span className="font-bold ml-2" style={{ color: `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
               </span>
             </div>
-            
-            {/* Title */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white leading-tight">
+
+            {/* Main Title */}
+            <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: `rgb(var(--hero-text-primary))` }}>
               {conferenceEvent.title}
             </h1>
-            
+
             {/* Subtitle */}
-            <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300">
+            <p className="text-xl sm:text-2xl leading-relaxed" style={{ color: `rgb(var(--hero-text-secondary))` }}>
               {conferenceEvent.subtitle}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="relative max-w-2xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        {/* Form Card */}
-        <div className="bg-secondary rounded-2xl shadow-md border border-divider overflow-hidden">
-          {/* Card Header - Gradient */}
-          <div className="bg-gradient-to-r from-brand-primary to-brand-primary-dark px-6 sm:px-8 py-8">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-white/20 rounded-lg">
+      {/* MAIN CONTENT */}
+      <div className="relative max-w-2xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+        {/* FORM CARD */}
+        <div className="card overflow-hidden">
+          {/* Card Header */}
+          <div className="px-6 sm:px-8 py-8 bg-primary" style={{ backgroundColor: `rgb(var(--primary))` }}>
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-lg" style={{ backgroundColor: `rgba(255, 255, 255, 0.2)` }}>
                 <MessageSquare className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white">Ask a Question</h2>
-                <p className="text-white/70 text-sm mt-1">Share your thoughts with the panel</p>
+              <div className="text-left">
+                <h2 className="text-3xl font-bold text-white">Ask a Question</h2>
+                <p className="text-white/80 text-sm mt-1">Share your thoughts and perspectives with our panel</p>
               </div>
             </div>
           </div>
 
           {/* Card Body */}
-          <div className="px-6 sm:px-8 py-8 space-y-6">
+          <div className="px-6 sm:px-8 py-8 space-y-6" style={{ backgroundColor: `rgb(var(--surface-elevated))` }}>
+            {/* Success Message */}
             {submittedSuccess && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl flex items-center space-x-3">
-                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+              <div className="p-4 rounded-xl flex items-center space-x-3 border-l-4" style={{
+                backgroundColor: `rgb(var(--success-light))`,
+                borderLeftColor: `rgb(var(--success))`
+              }}>
+                <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: `rgb(var(--success))` }}>
                   <span className="text-white text-sm font-bold">✓</span>
                 </div>
-                <span className="font-medium text-green-800 dark:text-green-200">Question submitted successfully!</span>
+                <span className="font-medium" style={{ color: `rgb(var(--success))` }}>
+                  Question submitted successfully! We appreciate your participation.
+                </span>
               </div>
             )}
 
+            {/* Error Message */}
             {errorMsg && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex items-center space-x-3">
-                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
+              <div className="p-4 rounded-xl flex items-center space-x-3 border-l-4" style={{
+                backgroundColor: `rgb(var(--danger-light))`,
+                borderLeftColor: `rgb(var(--danger))`
+              }}>
+                <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: `rgb(var(--danger))` }}>
                   <span className="text-white text-sm font-bold">!</span>
                 </div>
-                <span className="font-medium text-red-800 dark:text-red-200">{errorMsg}</span>
+                <span className="font-medium" style={{ color: `rgb(var(--danger))` }}>
+                  {errorMsg}
+                </span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-primary mb-3">Your Question</label>
+            {/* FORM */}
+            <form onSubmit={handleSubmit} className="space-y-7">
+              {/* Question Textarea */}
+              <div className="space-y-2.5">
+                <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
+                  Your Question
+                </label>
                 <textarea
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
-                  placeholder="Type your question here..."
-                  className="w-full h-32 px-4 py-3 rounded-xl border-2 border-divider bg-primary text-primary placeholder-tertiary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 outline-none transition resize-none"
+                  placeholder="Share what's on your mind..."
+                  className="input-base w-full h-32 resize-none"
                   disabled={isSubmitting}
                 />
-                <p className="mt-2 text-xs font-medium text-tertiary">{questionText.length} characters</p>
+                <p className="text-xs font-medium" style={{ color: `rgb(var(--text-muted))` }}>
+                  {questionText.length} characters
+                </p>
               </div>
 
+              {/* Anonymous Checkbox */}
               <div className="flex items-center">
                 <label className="flex items-center cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymous}
-                    onChange={(e) => setIsAnonymous(e.target.checked)}
-                    className="w-5 h-5 rounded border-divider"
-                    disabled={isSubmitting}
-                  />
-                  <span className="ml-3 font-semibold text-primary group-hover:text-brand-primary transition">Ask anonymously</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                      className="w-5 h-5 opacity-0 absolute"
+                      disabled={isSubmitting}
+                    />
+                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center transition-all" style={{
+                      borderColor: isAnonymous ? `rgb(var(--primary))` : `rgb(var(--input-border))`,
+                      backgroundColor: isAnonymous ? `rgb(var(--primary))` : 'transparent'
+                    }}>
+                      {isAnonymous && <span className="text-white text-sm font-bold">✓</span>}
+                    </div>
+                  </div>
+                  <span className="ml-3 font-semibold text-primary group-hover:opacity-80 transition" style={{ color: `rgb(var(--text-primary))` }}>
+                    Ask anonymously
+                  </span>
                 </label>
               </div>
 
+              {/* Name Input */}
               {!isAnonymous && (
-                <div>
-                  <label className="block text-sm font-bold text-primary mb-3">Your Name</label>
+                <div className="space-y-2.5">
+                  <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
+                    Your Name
+                  </label>
                   <input
                     type="text"
                     value={authorName}
                     onChange={(e) => setAuthorName(e.target.value)}
                     placeholder="Enter your name"
-                    className="w-full px-4 py-3 rounded-xl border-2 border-divider bg-primary text-primary placeholder-tertiary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 outline-none transition"
+                    className="input-base w-full"
                     disabled={isSubmitting}
                   />
                 </div>
               )}
 
+              {/* Topic Select */}
               {categories.length > 0 && (
-                <div>
-                  <label className="block text-sm font-bold text-primary mb-3">Topic (Optional)</label>
+                <div className="space-y-2.5">
+                  <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
+                    Topic (Optional)
+                  </label>
                   <select
                     value={selectedCategoryId}
                     onChange={(e) => setSelectedCategoryId(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-divider bg-primary text-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 outline-none transition"
+                    className="input-base w-full appearance-none cursor-pointer bg-no-repeat"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234f46e5' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                      backgroundPosition: 'right 1rem center',
+                      paddingRight: '2.5rem'
+                    }}
                     disabled={isSubmitting}
                   >
                     <option value="">Select a topic...</option>
@@ -169,10 +214,11 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                 </div>
               )}
 
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isSubmitting || !questionText.trim()}
-                className="w-full bg-brand-primary hover:bg-brand-primary-dark disabled:opacity-60 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
+                className="btn-base btn-primary-lg w-full mt-8"
               >
                 <Send className="w-5 h-5" />
                 <span>{isSubmitting ? 'Submitting...' : 'Submit Question'}</span>
@@ -181,10 +227,14 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
           </div>
         </div>
 
-        {/* Footer Info */}
+        {/* INFO MESSAGE */}
         <div className="mt-12 text-center">
-          <div className="inline-block bg-secondary rounded-xl shadow-md border border-divider px-6 py-4">
-            <p className="text-sm text-secondary">Your question will be reviewed by moderators and featured during the live session</p>
+          <div className="inline-block px-6 py-4 rounded-xl border card" style={{
+            backgroundColor: `rgb(var(--surface-secondary))`
+          }}>
+            <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
+              ✨ Your question will be reviewed by our moderators and featured during the live session if selected.
+            </p>
           </div>
         </div>
       </div>
