@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file server.ts
  * @description This file sets up an Express.js server for a real-time Q&A application.
  * It uses Server-Sent Events (SSE) for broadcasting updates and manages an in-memory "database"
@@ -11,7 +11,13 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import cookieParser from 'cookie-parser';
 import { Question, Category, ConferenceEvent, QuestionStatus } from './src/types';
+import { logger } from './src/logger';
+
+// Helper: Hash session ID for safe logging
+const hashSessionId = (sessionId: string) =>
+  sessionId ? crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16) : 'unknown';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -21,7 +27,7 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
-  console.error('❌ Missing Supabase credentials in .env file');
+  console.error('âŒ Missing Supabase credentials in .env file');
   console.error('   Required: VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
@@ -33,48 +39,31 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   }
 });
 
-console.log('✅ Supabase admin client initialized');
+console.log('âœ… Supabase admin client initialized');
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cookieParser());
 
 // --- Authentication & Authorization ---
 
 /**
- * Middleware to verify admin access.
- * SECURITY: Fail-closed if ADMIN_API_TOKEN is not configured.
- * In production, the server will not start without the admin token.
- * In development, the ALLOW_UNAUTHENTICATED_ADMIN opt-in is required.
+ * Middleware to verify administrator access using a Supabase Auth access token.
+ * Roles are read from app_metadata, which can only be changed with the
+ * Supabase service-role key (or in the Supabase dashboard).
  */
-function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const adminToken = req.headers.authorization?.replace('Bearer ', '');
-  const expectedToken = process.env.ADMIN_API_TOKEN;
-
-  // Fail closed: if no admin token configured, refuse to operate
-  if (!expectedToken) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('❌ CRITICAL: ADMIN_API_TOKEN not configured and NODE_ENV=production. Server refusing to start admin endpoints.');
-      return res.status(500).json({ error: 'Internal server error: Admin authentication not configured' });
-    }
-    // Development mode: require explicit opt-in
-    if (process.env.ALLOW_UNAUTHENTICATED_ADMIN !== '1') {
-      console.error('❌ CRITICAL: ADMIN_API_TOKEN not configured. Set ALLOW_UNAUTHENTICATED_ADMIN=1 to allow unauthenticated admin (dev only).');
-      return res.status(500).json({ error: 'Internal server error: Admin authentication not configured' });
-    }
-    console.warn('⚠️  WARNING: Admin endpoints running without configured ADMIN_API_TOKEN (dev mode only).');
-    return next();
+async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Administrator sign-in is required' });
   }
 
-  // Use constant-time comparison to prevent timing side-channels
-  if (!crypto.timingSafeEqual(Buffer.from(adminToken), Buffer.from(expectedToken))) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid or missing admin token' });
-  }
-
-  // Validate minimum token length (prevent trivial tokens)
-  if (expectedToken.length < 32) {
-    return res.status(500).json({ error: 'Internal server error: Admin token too short (minimum 32 characters)' });
+  const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+  const role = user?.app_metadata?.role;
+  if (error || !user || (role !== 'admin' && role !== 'moderator')) {
+    return res.status(403).json({ error: 'Administrator access is required' });
   }
 
   next();
@@ -98,7 +87,6 @@ function validateSessionId(s: string): boolean {
  * Fixed-length format ensures consistent validation across all endpoints.
  */
 function generateSecureSessionId(): string {
-  const crypto = require('crypto');
   return `sess-${crypto.randomBytes(16).toString('hex')}`; // 32 hex chars = 16 bytes
 }
 
@@ -124,6 +112,8 @@ function broadcastStateUpdate(type: string, data?: any) {
     data,
     timestamp: new Date().toISOString()
   });
+
+  logger.debug('Broadcasting update to all clients', { type, clientCount: clients.length });
 
   clients.forEach(client => {
     client.write(`data: ${payload}\n\n`);
@@ -159,7 +149,7 @@ app.post('/api/session', (req, res) => {
 
     // Log only SHA-256 hash of sessionId for audit (never raw value)
     const sessionHash = crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
-    console.log(`✓ New session created: hash=${sessionHash}...`);
+    logger.info('New session created', { sessionHash });
 
     // Do NOT include sessionId in JSON response body
     res.json({ success: true });
@@ -175,6 +165,8 @@ app.post('/api/session', (req, res) => {
  * and receives incremental updates as they happen.
  */
 app.get('/api/stream', (req, res) => {
+  logger.info('SSE connection established', { clientCount: clients.length + 1 });
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -190,6 +182,7 @@ app.get('/api/stream', (req, res) => {
   clients.push(res);
 
   req.on('close', () => {
+    logger.info('SSE connection closed', { clientCount: clients.length - 1 });
     clients = clients.filter(c => c !== res);
   });
 });
@@ -206,32 +199,45 @@ app.get('/api/state', async (req, res) => {
     // The sessionId is set by POST /api/session via res.cookie('qna_session_id', ...)
     const sessionId = req.cookies?.['qna_session_id'] as string;
 
+    logger.debug('GET /api/state requested', { sessionHash: hashSessionId(sessionId) });
+
     if (!sessionId) {
+      logger.warn('GET /api/state: Missing session cookie');
       return res.status(400).json({ error: 'Missing session cookie. Call POST /api/session first.' });
     }
 
     // SECURITY: Validate sessionId format using shared helper
     // Ensures writer and reader can never diverge on format
     if (!validateSessionId(sessionId)) {
+      logger.warn('GET /api/state: Invalid session ID format', { sessionHash: hashSessionId(sessionId) });
       return res.status(400).json({ error: 'Invalid session ID format' });
     }
 
-    // Fetch questions - ONLY the user's own questions (RLS enforced in Supabase)
-    // .eq('session_id', sessionId) ensures user isolation at database level
+    // Fetch all questions (not filtered by session - all questions visible to moderators)
+    logger.debug('Fetching all questions from Supabase');
     const { data: questionsData, error: questionsError } = await supabase
       .from('questions')
-      .select('*')
-      .eq('session_id', sessionId)  // SECURITY: Filter by session ID
+      .select('*, categories(name, color)')
       .order('created_at', { ascending: false });
 
-    if (questionsError) throw questionsError;
+    if (questionsError) {
+      logger.error('Error fetching questions', { error: questionsError.message, code: questionsError.code });
+      throw questionsError;
+    }
+
+    logger.info('Questions fetched from database', { count: questionsData?.length || 0, data: questionsData?.slice(0, 2) });
 
     // Fetch categories (public data, same for all users)
     const { data: categoriesData, error: categoriesError } = await supabase
       .from('categories')
       .select('*');
 
-    if (categoriesError) throw categoriesError;
+    if (categoriesError) {
+      logger.error('Error fetching categories', categoriesError);
+      throw categoriesError;
+    }
+
+    logger.debug('Categories fetched', { count: categoriesData?.length || 0 });
 
     // Fetch conference event (public data, same for all users)
     const { data: eventData, error: eventError } = await supabase
@@ -249,7 +255,7 @@ app.get('/api/state', async (req, res) => {
       authorName: q.author_name,
       isAnonymous: q.is_anonymous,
       categoryId: q.category_id,
-      categoryName: categoriesData?.find((c: any) => c.id === q.category_id)?.name || '',
+      categoryName: q.categories?.name || categoriesData?.find((c: any) => c.id === q.category_id)?.name || '',
       status: q.status,
       isPriority: q.is_priority,
       moderatorNotes: q.moderator_notes,
@@ -295,18 +301,22 @@ app.get('/api/state', async (req, res) => {
  * Persists to Supabase and broadcasts update via SSE.
  */
 app.post('/api/questions', async (req, res) => {
-  const { text, authorName, isAnonymous, categoryId, sessionId, deviceInfo, networkInfo } = req.body;
+  const { text, authorName, isAnonymous, categoryId, deviceInfo, networkInfo } = req.body;
+  const sessionId = req.cookies?.['qna_session_id'] as string;
+
+  logger.debug('Question submission received', { textLength: text?.length || 0, categoryId, hasSession: !!sessionId });
 
   if (!text || text.trim().length === 0) {
+    logger.warn('Question submission rejected: empty text');
     return res.status(400).json({ error: 'Question text is required' });
   }
 
   if (!sessionId) {
-    return res.status(400).json({ error: 'Session ID is required. Call POST /api/session first.' });
+    return res.status(400).json({ error: 'Session not found. Please refresh the page.' });
   }
 
-  // SECURITY: Validate session ID format (should start with 'sess-' and be reasonable length)
-  if (!/^sess-[a-f0-9]+$/.test(sessionId)) {
+  // SECURITY: Validate session ID format
+  if (!validateSessionId(sessionId)) {
     return res.status(400).json({ error: 'Invalid session ID format' });
   }
 
@@ -314,6 +324,8 @@ app.post('/api/questions', async (req, res) => {
   const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
   try {
+    logger.debug('Inserting question into Supabase', { sessionHash: hashSessionId(sessionId) });
+
     // Insert question into Supabase
     const { data, error } = await supabase
       .from('questions')
@@ -321,7 +333,7 @@ app.post('/api/questions', async (req, res) => {
         text: text.trim(),
         author_name: isAnonymous ? 'Anonymous Attendee' : (authorName?.trim() || 'Attendee'),
         is_anonymous: !!isAnonymous,
-        category_id: categoryId,
+        category_id: categoryId && categoryId.trim() ? categoryId : null,
         status: 'pending',
         is_priority: false,
         session_id: sessionId,
@@ -334,7 +346,12 @@ app.post('/api/questions', async (req, res) => {
       .select('*, categories(name, color)')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      logger.error('Supabase insert error', error);
+      throw error;
+    }
+
+    logger.info('Question inserted successfully', { questionId: data.id, status: data.status });
 
     // Map to frontend format
     const newQuestion: Question = {
@@ -352,10 +369,13 @@ app.post('/api/questions', async (req, res) => {
       createdAt: data.created_at
     };
 
+    logger.debug('Broadcasting question update to all clients', { questionId: newQuestion.id });
     broadcastStateUpdate('question:created', newQuestion);
+
+    logger.info('Question submission completed successfully', { questionId: newQuestion.id });
     res.status(201).json(newQuestion);
   } catch (error: any) {
-    console.error('Error submitting question to Supabase:', error);
+    logger.error('Error submitting question to Supabase', error);
     res.status(500).json({ error: error.message || 'Failed to submit question' });
   }
 });
@@ -662,6 +682,20 @@ app.post('/api/reset', requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/logs
+ * @description Returns the current application logs (for debugging).
+ * SECURITY: Restricted to admin users only.
+ */
+app.get('/api/logs', requireAdmin, (req, res) => {
+  try {
+    const logContent = logger.getLogContent();
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(logContent);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to read logs' });
+  }
+});
 
 // --- Server Initialization ---
 
@@ -686,8 +720,11 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Conference Q&A Server running on http://localhost:${PORT}`);
+    logger.info(`Conference Q&A Server started`, { port: PORT, url: `http://localhost:${PORT}` });
   });
 }
 
 startServer();
+
+
+

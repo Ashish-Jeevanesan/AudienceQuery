@@ -2,6 +2,37 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Frontend Design System
+
+### Typography
+- **Body**: Bricolage Grotesque
+- **Display**: Fraunces
+- **Mono**: JetBrains Mono
+- Use weight extremes: 200 vs 800, not 400 vs 600
+- Size jumps of 3x+, not 1.5x increments
+
+### Color & Theme
+- Single dominant color with one sharp accent
+- All colors live in CSS variables in `src/index.css`
+- Forbidden: purple-to-blue gradients on white backgrounds
+- Commit to intentional, distinctive color choices
+
+### Backgrounds
+- Layered CSS gradients or geometric patterns over solid colors
+- Hero sections must have atmospheric depth
+- Avoid flat single-color backgrounds in prominent areas
+
+### Motion
+- CSS-only transitions for non-interactive elements
+- Motion (Framer Motion) for React component animations
+- One well-orchestrated page-load reveal beats scattered micro-interactions
+
+### Components
+- Always use shadcn/ui primitives where they exist (Button, Card, Dialog, Form)
+- Never hand-roll components that exist in shadcn registry
+- Tailwind classes only - no inline styles, no CSS modules
+- Build with distinctive, intentional design, not generic AI aesthetics
+
 ## Commands
 
 ### Development

@@ -201,3 +201,27 @@ Generate with: `openssl rand -hex 32`
    - Submit question
    - Check Supabase for data persistence
    - Verify user isolation (different browsers/incognito)
+
+---
+name: repair-moderator-auth-hook
+description: Fixed frontend startup crash in the pending Supabase-auth work
+metadata:
+  type: project
+---
+
+**Why:** `useNavigate()` was invoked at module scope, outside a React component and without a router provider. This prevents the Vite client from loading. The Supabase client was also recreated in the render path, which would repeatedly re-run auth subscriptions.
+
+**How to apply:** `App.tsx` now uses the shared frontend Supabase client, changes the active role directly after a verified moderator login, and treats moderator authentication as access to all admin views.
+
+The environment-variable template now documents the Supabase credentials and the required `ADMIN_API_TOKEN` for protected moderator API actions.
+
+---
+name: supabase-admin-login-flow
+description: Completed Supabase account login for Moderator, Panel, and Stage access
+metadata:
+  type: project
+---
+
+**Why:** The in-progress implementation used an unconfigured Google OAuth flow, referenced a nonexistent `profiles` table, and never passed a valid credential to protected API endpoints. It therefore could not provide working administrator access.
+
+**How to apply:** The Moderator tab now opens an email/password sign-in dialog. Accounts created in Supabase receive access when their immutable `app_metadata.role` is `admin` or `moderator`. The server validates each Supabase access token and the frontend attaches that token to all protected requests. Signed-in administrators can use Moderator, Panel, and Stage; the reset control is no longer visible to audience users. `ADMIN_API_TOKEN` is no longer used.

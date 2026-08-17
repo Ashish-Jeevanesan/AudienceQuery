@@ -6,22 +6,64 @@
  * current `activeRole`.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRealTimeQnA } from './useRealTimeQnA';
 import { Header } from './components/Header';
 import { AudienceView } from './components/AudienceView';
+import { Footer } from './components/Footer';
 import { ModeratorView } from './components/ModeratorView';
 import { PanelView } from './components/PanelView';
 import { StageView } from './components/StageView';
 import type { ViewRole } from './types';
+import { supabase } from './supabaseClient';
 
 /**
  * The main application component.
  * It orchestrates the entire UI, fetching data and passing it down to the
- * active view component.
+ * active view component. Uses Supabase Auth for role-based access control.
  * @returns {React.ReactElement} The rendered application.
  */
 export default function App() {
+  // State to track moderator auth status from Supabase
+  const [isModeratorAuthenticated, setIsModeratorAuthenticated] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Effect to check moderator role on mount and when auth changes
+  useEffect(() => {
+    const checkModeratorRole = async () => {
+      try {
+        // Get the current user from Supabase Auth
+        const { data: { user} } = await supabase.auth.getUser();
+
+        if (user) {
+          const role = user.app_metadata?.role;
+          setIsModeratorAuthenticated(role === 'admin' || role === 'moderator');
+        } else {
+          setIsModeratorAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Error checking moderator role:', error);
+        setIsModeratorAuthenticated(false);
+      }
+    };
+
+    checkModeratorRole();
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      checkModeratorRole();
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  // Destructure useRealTimeQnA hooks
   const {
     questions,
     categories,
@@ -46,7 +88,8 @@ export default function App() {
   const answeringCount = questions.filter(q => q.status === 'answering').length;
 
   // Determine if the current user has admin access (moderator role)
-  const isAdmin = activeRole === 'moderator';
+  // isAdmin is true if: user is authenticated AND has moderator role in Supabase
+  const isAdmin = isModeratorAuthenticated;
 
   // Restrict role changes: only allow switching to audience role freely.
   // Other roles (moderator, panel, stage) require admin privileges.
@@ -57,9 +100,41 @@ export default function App() {
     return isAdmin;
   };
 
+  const handleModeratorLogin = () => {
+    setLoginError('');
+    setIsLoginOpen(true);
+  };
+
+  const submitModeratorLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      setLoginError(error?.message || 'Unable to sign in.');
+      setIsLoggingIn(false);
+      return;
+    }
+
+    const role = data.user.app_metadata?.role;
+    if (role !== 'admin' && role !== 'moderator') {
+      await supabase.auth.signOut();
+      setLoginError('This account does not have administrator access.');
+      setIsLoggingIn(false);
+      return;
+    }
+
+    setIsModeratorAuthenticated(true);
+    setActiveRole('moderator');
+    setPassword('');
+    setIsLoginOpen(false);
+    setIsLoggingIn(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Top Navbar Header */}
+      {/* Top Navbar Header - Shows login prompt if not moderator */}
       <Header
         activeRole={activeRole}
         setActiveRole={setActiveRole}
@@ -71,6 +146,8 @@ export default function App() {
         pushedCount={pushedCount}
         answeringCount={answeringCount}
         isAdmin={isAdmin}
+        onModeratorLogin={handleModeratorLogin}
+        isModeratorAuthenticated={isModeratorAuthenticated}
       />
 
       {/* Main View Container - Renders the view based on the active role */}
@@ -86,6 +163,7 @@ export default function App() {
           />
         )}
 
+        {/* Moderator view - requires moderator role in Supabase */}
         {isAdmin && activeRole === 'moderator' && (
           <ModeratorView
             questions={questions}
@@ -117,6 +195,27 @@ export default function App() {
           />
         )}
       </main>
+      <Footer />
+
+      {isLoginOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <form onSubmit={submitModeratorLogin} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-slate-900">Administrator access</h2>
+            <p className="mt-1 text-sm text-slate-600">Sign in with the administrator account created in Supabase.</p>
+            <label className="mt-5 block text-sm font-medium text-slate-700">Email
+              <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="email" />
+            </label>
+            <label className="mt-3 block text-sm font-medium text-slate-700">Password
+              <input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="current-password" />
+            </label>
+            {loginError && <p className="mt-3 text-sm text-rose-600">{loginError}</p>}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setIsLoginOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600">Cancel</button>
+              <button disabled={isLoggingIn} type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isLoggingIn ? 'Signing in…' : 'Sign in'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

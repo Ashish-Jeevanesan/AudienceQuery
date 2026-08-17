@@ -8,26 +8,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Question, Category, ConferenceEvent, QuestionStatus, ViewRole } from './types';
-
-/**
- * Retrieves a persistent session ID from localStorage.
- * If none exists, returns null (will be generated server-side).
- * @returns {string | null} The cached session ID or null.
- */
-function getCachedSessionId(): string | null {
-  return localStorage.getItem('qna_session_id');
-}
-
-/**
- * Stores the session ID in localStorage for persistence across page reloads.
- * @param {string} id The session ID to store.
- */
-function cacheSessionId(id: string): void {
-  localStorage.setItem('qna_session_id', id);
-}
+import { supabase } from './supabaseClient';
 
 /**
  * A custom hook to manage the real-time Q&A state and interactions.
+ * Integrates Supabase Auth for role-based access control.
  */
 export function useRealTimeQnA() {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -43,48 +28,49 @@ export function useRealTimeQnA() {
   const [activeRole, setActiveRole] = useState<ViewRole>('audience');
   const [mySubmittedIds, setMySubmittedIds] = useState<string[]>(() => {
     try {
-      // Retrieve IDs of questions this user has submitted from local storage.
       return JSON.parse(localStorage.getItem('qna_my_submitted_ids') || '[]');
     } catch {
       return [];
     }
   });
 
-  const sessionIdRef = useRef<string | null>(getCachedSessionId());
+  const sessionInitialized = useRef(false);
+
+  const adminFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Administrator sign-in is required');
+
+    const headers = new Headers(init.headers);
+    headers.set('Authorization', `Bearer ${session.access_token}`);
+    return fetch(input, { ...init, headers });
+  }, []);
 
   // Effect for fetching initial state and setting up the SSE connection.
   useEffect(() => {
     let eventSource: EventSource | null = null;
 
-    // Generates a new session ID from the server (if not cached).
     const ensureSessionId = async () => {
-      if (sessionIdRef.current) {
-        console.log('✓ Using cached session ID');
-        return sessionIdRef.current;
+      if (sessionInitialized.current) {
+        return;
       }
 
       try {
         const res = await fetch('/api/session', { method: 'POST' });
-        if (res.ok) {
-          const { sessionId } = await res.json();
-          sessionIdRef.current = sessionId;
-          cacheSessionId(sessionId);
-          console.log('✓ New session ID generated:', sessionId);
-          return sessionId;
-        } else {
-          throw new Error('Failed to generate session');
+        if (!res.ok) {
+          throw new Error('Failed to establish session');
         }
+        sessionInitialized.current = true;
+        console.log('✓ Session established');
       } catch (err) {
-        console.error('Error generating session ID:', err);
+        console.error('Error establishing session:', err);
         throw err;
       }
     };
 
-    // Fetches the initial state snapshot from the server.
     const fetchInitialState = async () => {
       try {
-        const sessionId = await ensureSessionId();
-        const res = await fetch(`/api/state?sessionId=${encodeURIComponent(sessionId)}`);
+        await ensureSessionId();
+        const res = await fetch('/api/state');
         if (res.ok) {
           const data = await res.json();
           setQuestions(data.questions || []);
@@ -110,11 +96,25 @@ export function useRealTimeQnA() {
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          // The server broadcasts the entire state on every update.
+
+          // Handle full state updates
           if (payload.state) {
             setQuestions(payload.state.questions || []);
             setCategories(payload.state.categories || []);
             if (payload.state.conferenceEvent) setConferenceEvent(payload.state.conferenceEvent);
+          }
+
+          // Handle individual question updates
+          if (payload.type === 'question:created' && payload.data) {
+            setQuestions(prev => [payload.data, ...prev]);
+          } else if (payload.type === 'question:updated' && payload.data) {
+            setQuestions(prev =>
+              prev.map(q => q.id === payload.data.id ? payload.data : q)
+            );
+          } else if (payload.type === 'question:status_changed' && payload.data) {
+            setQuestions(prev =>
+              prev.map(q => q.id === payload.data.id ? payload.data : q)
+            );
           }
         } catch (err) {
           console.error('Error parsing SSE message:', err);
@@ -125,14 +125,12 @@ export function useRealTimeQnA() {
         console.error('SSE connection error:', err);
         setIsConnected(false);
         eventSource?.close();
-        // Attempt to reconnect after a short delay.
         setTimeout(connectSSE, 3000);
       };
     };
 
     connectSSE();
 
-    // Cleanup on component unmount.
     return () => {
       if (eventSource) {
         eventSource.close();
@@ -140,12 +138,7 @@ export function useRealTimeQnA() {
     };
   }, []);
 
-  /**
-   * Captures device and network metadata for the current session.
-   * @returns {object} Device and network information.
-   */
   const captureDeviceMetadata = useCallback(() => {
-    // Device info from navigator
     const deviceInfo = {
       deviceType: /mobile|android|iphone|ipod/i.test(navigator.userAgent)
         ? 'mobile'
@@ -157,7 +150,6 @@ export function useRealTimeQnA() {
       screenResolution: `${window.screen.width}x${window.screen.height}`
     };
 
-    // Network info from navigator (limited - IP requires backend)
     const networkInfo = {
       userAgent: navigator.userAgent,
       language: navigator.language
@@ -166,11 +158,20 @@ export function useRealTimeQnA() {
     return { deviceInfo, networkInfo };
   }, []);
 
-  /**
-   * Submits a new question to the server with device metadata.
-   * @param params - The details of the question to submit.
-   * @returns {Promise<Question>} The newly created question.
-   */
+  const fetchFullState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/state');
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data.questions || []);
+        setCategories(data.categories || []);
+        if (data.conferenceEvent) setConferenceEvent(data.conferenceEvent);
+      }
+    } catch (err) {
+      console.error('Failed to refresh state:', err);
+    }
+  }, []);
+
   const submitQuestion = useCallback(async (params: {
     text: string;
     authorName: string;
@@ -178,10 +179,9 @@ export function useRealTimeQnA() {
     categoryId: string;
   }) => {
     try {
-      // Capture device metadata
       const { deviceInfo, networkInfo } = captureDeviceMetadata();
 
-      if (!sessionIdRef.current) {
+      if (!sessionInitialized.current) {
         throw new Error('Session not initialized. Please refresh the page.');
       }
 
@@ -190,7 +190,6 @@ export function useRealTimeQnA() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...params,
-          sessionId: sessionIdRef.current,
           deviceInfo,
           networkInfo
         })
@@ -201,7 +200,6 @@ export function useRealTimeQnA() {
       }
       const newQ: Question = await res.json();
 
-      // Store submitted question ID in local storage to track "My Questions".
       setMySubmittedIds(prev => {
         const updated = [newQ.id, ...prev];
         localStorage.setItem('qna_my_submitted_ids', JSON.stringify(updated));
@@ -215,29 +213,20 @@ export function useRealTimeQnA() {
     }
   }, [captureDeviceMetadata]);
 
-  /**
-   * Updates the status of a question (for moderators and panelists).
-   * @param {string} questionId - The ID of the question to update.
-   * @param {QuestionStatus} status - The new status.
-   * @param {string} [moderatorNotes] - Optional notes from the moderator.
-   */
   const updateStatus = useCallback(async (questionId: string, status: QuestionStatus, moderatorNotes?: string) => {
     try {
-      await fetch(`/api/questions/${questionId}/status`, {
+      const res = await adminFetch(`/api/questions/${questionId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, moderatorNotes })
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to update question status');
+      await fetchFullState();
     } catch (err) {
       console.error('Status update error:', err);
     }
-  }, []);
+  }, [adminFetch, fetchFullState]);
 
-  /**
-   * Edits the details of a question (for moderators).
-   * @param {string} questionId - The ID of the question to edit.
-   * @param {object} data - The fields to update.
-   */
   const editQuestion = useCallback(async (questionId: string, data: {
     text?: string;
     categoryId?: string;
@@ -245,72 +234,65 @@ export function useRealTimeQnA() {
     moderatorNotes?: string;
   }) => {
     try {
-      await fetch(`/api/questions/${questionId}`, {
+      const res = await adminFetch(`/api/questions/${questionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to edit question');
+      await fetchFullState();
     } catch (err) {
       console.error('Edit error:', err);
     }
-  }, []);
+  }, [adminFetch, fetchFullState]);
 
-  /**
-   * Deletes a question from the system (for moderators).
-   * @param {string} questionId - The ID of the question to delete.
-   */
   const deleteQuestion = useCallback(async (questionId: string) => {
     try {
-      await fetch(`/api/questions/${questionId}`, {
+      const res = await adminFetch(`/api/questions/${questionId}`, {
         method: 'DELETE'
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to delete question');
+      await fetchFullState();
     } catch (err) {
       console.error('Delete error:', err);
     }
-  }, []);
+  }, [adminFetch, fetchFullState]);
 
-  /**
-   * Creates a new topic category (for moderators).
-   * @param {object} data - The details of the new category.
-   */
   const createCategory = useCallback(async (data: { name: string; color: string; description?: string }) => {
     try {
-      await fetch('/api/categories', {
+      const res = await adminFetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to create category');
+      await fetchFullState();
     } catch (err) {
       console.error('Category create error:', err);
     }
-  }, []);
+  }, [adminFetch, fetchFullState]);
 
-  /**
-   * Updates the main event settings (for moderators).
-   * @param {Partial<ConferenceEvent>} data - The event settings to update.
-   */
   const updateEvent = useCallback(async (data: Partial<ConferenceEvent>) => {
     try {
-      await fetch('/api/event', {
+      const res = await adminFetch('/api/event', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to update event');
     } catch (err) {
       console.error('Update event error:', err);
     }
-  }, []);
+  }, [adminFetch]);
 
-  /**
-   * Resets the in-memory data on the server to its initial sample state.
-   */
   const resetDemoData = useCallback(async () => {
     try {
-      await fetch('/api/reset', { method: 'POST' });
+      const res = await adminFetch('/api/reset', { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).error || 'Unable to reset data');
     } catch (err) {
       console.error('Reset error:', err);
     }
-  }, []);
+  }, [adminFetch]);
 
   return {
     questions,
@@ -319,7 +301,7 @@ export function useRealTimeQnA() {
     isConnected,
     activeRole,
     setActiveRole,
-    sessionId: sessionIdRef.current || 'unknown',
+    sessionId: 'managed-by-cookies',
     mySubmittedIds,
     submitQuestion,
     updateStatus,

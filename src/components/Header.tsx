@@ -1,46 +1,22 @@
-/**
- * @file src/components/Header.tsx
- * @description The main header component for the application. It displays the event title,
- * connection status, and the primary navigation tabs for switching between different
- * user roles/views (Audience, Moderator, Panel, Stage).
- */
-
-import React from 'react';
+import React, { useState } from 'react';
 import { ViewRole } from '../types';
-import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Radio, BookOpenCheck } from 'lucide-react';
+import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Sun, Moon } from 'lucide-react';
 
-/**
- * Props for the Header component.
- */
 interface HeaderProps {
-  /** The currently active user role/view. */
   activeRole: ViewRole;
-  /** Function to set the active user role. */
   setActiveRole: (role: ViewRole) => void;
-  /** The main title of the conference event. */
   title: string;
-  /** The subtitle of the conference event. */
   subtitle: string;
-  /** Boolean indicating if the client is connected to the SSE stream. */
   isConnected: boolean;
-  /** Function to trigger a reset of the demo data on the server. */
   onResetDemo: () => void;
-  /** Count of questions with 'pending' status for the moderator badge. */
   pendingCount: number;
-  /** Count of questions with 'pushed' status for the panel badge. */
   pushedCount: number;
-  /** Count of questions with 'answering' status for the stage badge. */
   answeringCount: number;
-  /** Whether the current user has admin (moderator) access. */
   isAdmin: boolean;
+  onModeratorLogin: () => void;
+  isModeratorAuthenticated: boolean;
 }
 
-/**
- * The sticky header component displayed at the top of the application.
- * It contains the event title, live status indicator, and view-switching tabs.
- * @param {HeaderProps} props The props for the component.
- * @returns {React.ReactElement} The rendered header.
- */
 export const Header: React.FC<HeaderProps> = ({
   activeRole,
   setActiveRole,
@@ -51,142 +27,137 @@ export const Header: React.FC<HeaderProps> = ({
   pendingCount,
   pushedCount,
   answeringCount,
-  isAdmin
+  isAdmin,
+  onModeratorLogin,
+  isModeratorAuthenticated
 }) => {
+  const [isDark, setIsDark] = useState(false);
+
+  const toggleTheme = () => {
+    setIsDark(!isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  };
+
+  const getTabClass = (role: ViewRole) => {
+    const isActive = activeRole === role;
+    const baseClass = 'px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 flex items-center gap-2 whitespace-nowrap';
+    
+    if (isActive) {
+      return `${baseClass} bg-brand-primary text-white`;
+    }
+    return `${baseClass} text-secondary hover:text-primary`;
+  };
+
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-lg">
+    <header className="sticky top-0 z-40 bg-primary border-b border-divider">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between py-3 gap-3">
-          
-          {/* Left: Title & Live Indicator */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
-                <BookOpenCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h1 className="font-bold text-lg leading-tight tracking-tight text-white">{title}</h1>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  }`}>
-                    <Radio className="w-3 h-3 mr-1 animate-pulse" />
-                    {isConnected ? 'LIVE SYNC' : 'Connecting...'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 hidden sm:block">{subtitle}</p>
-              </div>
+        {/* Main header row */}
+        <div className="flex items-center justify-between h-20">
+          {/* Left: Logo & Title */}
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="w-12 h-12 bg-gradient-to-br from-brand-primary to-brand-primary-dark rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-md flex-shrink-0">
+              Q
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-primary truncate">{title}</h1>
+              <p className="text-xs text-secondary truncate">{subtitle}</p>
+            </div>
+          </div>
+
+          {/* Right: Status & Actions */}
+          <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+            {/* Live Status */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-lg">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}></div>
+              <span className="text-xs font-medium text-secondary">
+                {isConnected ? 'Live' : 'Offline'}
+              </span>
             </div>
 
-            {/* Mobile Reset Demo Button */}
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 hover:bg-secondary text-secondary transition-colors rounded-lg"
+              title="Toggle theme"
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+
+            {/* Reset Button */}
             <button
               onClick={onResetDemo}
-              title="Reset Sample Data"
-              className="md:hidden p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+              className="p-2 hover:bg-secondary text-secondary transition-colors rounded-lg"
+              title="Reset demo"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-5 h-5" />
             </button>
           </div>
+        </div>
 
-          {/* Right: Navigation View Tabs & Reset Button */}
-          <div className="flex items-center justify-between md:justify-end gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-            <nav className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
-              <button
-                onClick={() => setActiveRole('audience')}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  activeRole === 'audience'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Audience</span>
-              </button>
+        {/* Navigation tabs - Full width row */}
+        <div className="flex items-center gap-2 py-3 border-t border-divider overflow-x-auto">
+          {/* Audience */}
+          <button
+            onClick={() => setActiveRole('audience')}
+            className={getTabClass('audience')}
+          >
+            <Users className="w-4 h-4" />
+            <span>Audience</span>
+          </button>
 
-              {/* Moderator tab - only visible to admins */}
-              {isAdmin ? (
-                <button
-                  onClick={() => setActiveRole('moderator')}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
-                    activeRole === 'moderator'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Moderator</span>
-                  {pendingCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
-                      {pendingCount}
-                    </span>
-                  )}
-                </button>
-              ) : (
-                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Moderator</span>
-                </div>
-              )}
-
-              {/* Panel tab - only visible to admins */}
-              {isAdmin ? (
-                <button
-                  onClick={() => setActiveRole('panel')}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all relative ${
-                    activeRole === 'panel'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5" />
-                  <span>Panel</span>
-                  {pushedCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-400 text-slate-950">
-                      {pushedCount}
-                    </span>
-                  )}
-                </button>
-              ) : (
-                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
-                  <Mic className="w-3.5 h-3.5" />
-                  <span>Panel</span>
-                </div>
-              )}
-
-              {/* Stage tab - only visible to admins */}
-              {isAdmin ? (
-                <button
-                  onClick={() => setActiveRole('stage')}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    activeRole === 'stage'
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Stage Screen</span>
-                  {answeringCount > 0 && (
-                    <span className="w-2 h-2 ml-2 rounded-full bg-rose-500 animate-ping"></span>
-                  )}
-                </button>
-              ) : (
-                <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500">
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Stage Screen</span>
-                </div>
-              )}
-            </nav>
-
+          {/* Moderator */}
+          {!isModeratorAuthenticated ? (
             <button
-              onClick={onResetDemo}
-              className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
-              title="Reset sample data to its original state"
+              onClick={onModeratorLogin}
+              className="px-4 py-2 rounded-lg font-semibold text-sm bg-brand-primary hover:bg-brand-primary-dark text-white transition-colors flex items-center gap-2 whitespace-nowrap"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset Demo</span>
+              <ShieldCheck className="w-4 h-4" />
+              <span>Login</span>
             </button>
-          </div>
+          ) : (
+            <button
+              onClick={() => setActiveRole('moderator')}
+              className={getTabClass('moderator')}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Moderator</span>
+              {pendingCount > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-bold">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          )}
 
+          {/* Panel */}
+          <button
+            onClick={() => isAdmin && setActiveRole('panel')}
+            disabled={!isAdmin}
+            className={`${getTabClass('panel')} ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Mic className="w-4 h-4" />
+            <span>Panel</span>
+            {pushedCount > 0 && isAdmin && (
+              <span className="ml-1 px-2 py-0.5 bg-brand-accent text-slate-900 text-xs rounded-full font-bold">
+                {pushedCount}
+              </span>
+            )}
+          </button>
+
+          {/* Stage */}
+          <button
+            onClick={() => isAdmin && setActiveRole('stage')}
+            disabled={!isAdmin}
+            className={`${getTabClass('stage')} ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Monitor className="w-4 h-4" />
+            <span>Stage</span>
+            {answeringCount > 0 && isAdmin && (
+              <span className="ml-1 px-2 py-0.5 bg-brand-primary text-white text-xs rounded-full font-bold">
+                {answeringCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
     </header>

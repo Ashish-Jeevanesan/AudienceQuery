@@ -1,1 +1,268 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@200;400;600;800&family=Fraunces:opsz,wght@9..144,300;9..144,700;9..144,800&family=JetBrains+Mono:wght@400;600&display=swap');
 @import "tailwindcss";
+
+@layer base {
+  /* Light Mode (Default) */
+  :root {
+    /* Background & Surface */
+    --bg-primary: 255, 255, 255;
+    --bg-secondary: 248, 250, 252;
+    --bg-tertiary: 241, 245, 249;
+
+    /* Text Colors */
+    --text-primary: 15, 23, 42;
+    --text-secondary: 71, 85, 105;
+    --text-tertiary: 120, 113, 108;
+
+    /* Border & Divider */
+    --border-color: 226, 232, 240;
+    --border-color-strong: 203, 213, 225;
+
+    /* Brand Colors */
+    --brand-primary: 79, 70, 229;
+    --brand-primary-dark: 67, 56, 202;
+    --brand-primary-light: 224, 231, 255;
+
+    --brand-accent: 245, 158, 11;
+    --brand-accent-dark: 217, 119, 6;
+
+    /* Semantic */
+    --color-success: 34, 197, 94;
+    --color-error: 239, 68, 68;
+    --color-warning: 234, 179, 8;
+  }
+
+  /* Dark Mode */
+  [data-theme="dark"] {
+    /* Background & Surface */
+    --bg-primary: 15, 23, 42;
+    --bg-secondary: 30, 41, 59;
+    --bg-tertiary: 51, 65, 85;
+
+    /* Text Colors */
+    --text-primary: 248, 250, 252;
+    --text-secondary: 203, 213, 225;
+    --text-tertiary: 148, 163, 184;
+
+    /* Border & Divider */
+    --border-color: 51, 65, 85;
+    --border-color-strong: 71, 85, 105;
+
+    /* Brand Colors */
+    --brand-primary: 129, 140, 248;
+    --brand-primary-dark: 99, 102, 241;
+    --brand-primary-light: 49, 46, 129;
+
+    --brand-accent: 251, 191, 36;
+    --brand-accent-dark: 245, 158, 11;
+
+    /* Semantic */
+    --color-success: 52, 211, 153;
+    --color-error: 248, 113, 113;
+    --color-warning: 250, 204, 21;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    color: rgb(var(--text-primary));
+    background-color: rgb(var(--bg-primary));
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  h1 {
+    @apply text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-4xl lg:text-5xl;
+  }
+
+  h3 {
+    @apply text-3xl lg:text-4xl;
+  }
+
+  h4 {
+    @apply text-2xl;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Theme-aware utilities */
+@layer utilities {
+  /* Background utilities */
+  .bg-primary {
+    background-color: rgb(var(--bg-primary));
+  }
+
+  .bg-secondary {
+    background-color: rgb(var(--bg-secondary));
+  }
+
+  .bg-tertiary {
+    background-color: rgb(var(--bg-tertiary));
+  }
+
+  /* Text utilities */
+  .text-primary {
+    color: rgb(var(--text-primary));
+  }
+
+  .text-secondary {
+    color: rgb(var(--text-secondary));
+  }
+
+  .text-tertiary {
+    color: rgb(var(--text-tertiary));
+  }
+
+  /* Border utilities */
+  .border-divider {
+    border-color: rgb(var(--border-color));
+  }
+
+  .border-divider-strong {
+    border-color: rgb(var(--border-color-strong));
+  }
+
+  /* Brand utilities */
+  .bg-brand-primary {
+    background-color: rgb(var(--brand-primary));
+  }
+
+  .bg-brand-primary-dark {
+    background-color: rgb(var(--brand-primary-dark));
+  }
+
+  .text-brand-primary {
+    color: rgb(var(--brand-primary));
+  }
+
+  .bg-brand-accent {
+    background-color: rgb(var(--brand-accent));
+  }
+
+  .bg-brand-accent-dark {
+    background-color: rgb(var(--brand-accent-dark));
+  }
+
+  .text-brand-accent {
+    color: rgb(var(--brand-accent));
+  }
+
+  /* Card elevation */
+  .card {
+    @apply rounded-2xl shadow-md transition-shadow duration-300;
+    background-color: rgb(var(--bg-secondary));
+    border-color: rgb(var(--border-color));
+  }
+
+  .card:hover {
+    @apply shadow-lg;
+  }
+
+  .card-lg {
+    @apply rounded-2xl shadow-lg;
+    background-color: rgb(var(--bg-secondary));
+    border-color: rgb(var(--border-color));
+  }
+
+  /* Button styles - Theme aware */
+  .btn-primary {
+    @apply px-6 py-3 text-white font-semibold rounded-xl transition-colors shadow-lg;
+    background-color: rgb(var(--brand-primary));
+  }
+
+  .btn-primary:hover {
+    background-color: rgb(var(--brand-primary-dark));
+    @apply shadow-xl;
+  }
+
+  .btn-primary-lg {
+    @apply px-8 py-4 text-white font-bold text-lg rounded-xl transition-colors shadow-xl;
+    background-color: rgb(var(--brand-primary));
+  }
+
+  .btn-primary-lg:hover {
+    background-color: rgb(var(--brand-primary-dark));
+    @apply shadow-2xl;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 font-semibold rounded-xl transition-colors;
+    background-color: rgb(var(--bg-secondary));
+    color: rgb(var(--text-primary));
+    border-color: rgb(var(--border-color));
+  }
+
+  .btn-secondary:hover {
+    background-color: rgb(var(--bg-tertiary));
+  }
+
+  .btn-accent {
+    @apply px-6 py-3 text-slate-900 font-bold rounded-xl transition-colors shadow-lg;
+    background-color: rgb(var(--brand-accent));
+  }
+
+  .btn-accent:hover {
+    background-color: rgb(var(--brand-accent-dark));
+    @apply shadow-xl;
+  }
+
+  /* Badge styles */
+  .badge-primary {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold text-white;
+    background-color: rgb(var(--brand-primary));
+  }
+
+  .badge-accent {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold text-slate-900;
+    background-color: rgb(var(--brand-accent));
+  }
+
+  .badge-success {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold text-white;
+    background-color: rgb(var(--color-success));
+  }
+
+  .badge-error {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold text-white;
+    background-color: rgb(var(--color-error));
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  /* Focus ring (accessibility) */
+  .focus-ring {
+    @apply focus-visible:ring-2 focus-visible:outline-none;
+    border-color: rgb(var(--brand-primary));
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply backdrop-blur-md rounded-2xl;
+    border-color: rgb(var(--border-color));
+  }
+
+  /* Section divider */
+  .section-divider {
+    @apply h-px my-8;
+    background-color: rgb(var(--border-color));
+  }
+}
