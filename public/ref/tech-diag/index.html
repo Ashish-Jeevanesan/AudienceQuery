@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<title>AudienceQuery — System Architecture</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --surface-raised: #fffdf9;
+    --ink: #1e1b16;
+    --muted: #6b6459;
+    --faint: #8f877a;
+    --accent: #c1793a;
+    --accent-strong: #9c5a22;
+    --accent-soft: #eddcc4;
+    --line: #e4ded3;
+    --line-strong: #d3cabb;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .dek {
+    color: var(--muted);
+    font-size: 15.5px;
+    max-width: 66ch;
+    margin: 0;
+  }
+
+  .lede {
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 66ch;
+    margin: 0;
+  }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  figure svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+
+  figcaption {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  figcaption code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  nav.crosslink {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  nav.crosslink a {
+    color: var(--accent-strong);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+  }
+
+  nav.crosslink a:hover {
+    border-bottom-color: var(--accent-strong);
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    font-size: 12.5px;
+    color: var(--faint);
+    font-family: var(--mono);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .page { padding: 40px 16px 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <span class="eyebrow">Workflow Reference · Fig. 1 of 2</span>
+    <h1>System Architecture</h1>
+    <p class="dek">Where a request actually goes: one Express app, exported once and reused two ways — a long-running dev server locally, and a serverless function on Vercel. Static files never touch the function.</p>
+    <nav class="crosslink"><a href="/ref/user-diag">→ View the question lifecycle diagram (Fig. 2)</a></nav>
+  </header>
+
+  <figure>
+    <svg viewBox="0 0 960 460" role="img" aria-label="Architecture diagram: browser clients reach Vercel's edge network for static files, and a serverless Express function for REST and SSE calls, which reads and writes Supabase Postgres and pushes live updates back over open SSE connections held by that same function instance.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+        </marker>
+        <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
+        </marker>
+      </defs>
+
+      <rect x="330" y="28" width="290" height="392" rx="12" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="5 5" />
+      <text x="346" y="50" font-size="11.5" font-family="var(--mono)" letter-spacing="0.08em" fill="currentColor" opacity="0.6">VERCEL</text>
+
+      <rect x="36" y="150" width="204" height="150" rx="10" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="138" y="200" text-anchor="middle" font-size="14" font-weight="600">Browser</text>
+      <text x="138" y="222" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.65">Audience · Moderator</text>
+      <text x="138" y="238" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.65">Panel · Stage</text>
+      <text x="138" y="264" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="currentColor" opacity="0.5">one SPA, role = UI state</text>
+
+      <rect x="356" y="58" width="240" height="92" rx="10" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="476" y="92" text-anchor="middle" font-size="13.5" font-weight="600">Edge Network</text>
+      <text x="476" y="112" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="currentColor" opacity="0.6">dist/ static build</text>
+      <text x="476" y="128" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.55">SPA rewrite, excl. /api, /ref</text>
+
+      <rect x="356" y="196" width="240" height="200" rx="10" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="476" y="228" text-anchor="middle" font-size="13.5" font-weight="600">Serverless Function</text>
+      <text x="476" y="248" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="currentColor" opacity="0.6">api/[...slug].ts</text>
+      <line x1="376" y1="262" x2="576" y2="262" stroke="currentColor" stroke-opacity="0.2" />
+      <text x="476" y="282" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">Express app</text>
+      <text x="476" y="300" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">HttpOnly session cookie</text>
+      <text x="476" y="318" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">REST routes + SSE stream</text>
+      <text x="476" y="336" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.65">in-memory open-client list</text>
+      <text x="476" y="372" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="#a8493a">console-only logs (read-only fs)</text>
+
+      <rect x="700" y="176" width="224" height="150" rx="10" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="812" y="216" text-anchor="middle" font-size="14" font-weight="600">Supabase</text>
+      <text x="812" y="238" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="currentColor" opacity="0.6">Postgres</text>
+      <text x="812" y="258" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.55">questions · categories</text>
+      <text x="812" y="274" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.55">event settings · auth</text>
+      <text x="812" y="300" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="currentColor" opacity="0.5">service-role key (server)</text>
+
+      <path d="M 240 178 L 356 100" fill="none" stroke="currentColor" marker-end="url(#arrow)" />
+      <text x="252" y="140" font-size="10.5" fill="currentColor" opacity="0.75">static assets</text>
+
+      <path d="M 240 240 L 356 258" fill="none" stroke="currentColor" marker-end="url(#arrow)" />
+      <text x="248" y="255" font-size="10.5" fill="currentColor" opacity="0.75">REST · cookie / Bearer JWT</text>
+
+      <path d="M 240 272 L 356 318" fill="none" stroke="currentColor" marker-end="url(#arrow)" />
+      <text x="248" y="300" font-size="10.5" fill="currentColor" opacity="0.75">GET /api/stream, held open</text>
+
+      <path d="M 596 280 L 700 260" fill="none" stroke="currentColor" marker-end="url(#arrow)" />
+      <text x="602" y="270" font-size="10.5" fill="currentColor" opacity="0.75" transform="rotate(-10 620 268)">read / write rows</text>
+
+      <path d="M 480 396 C 420 452, 200 452, 148 302" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="3 4" marker-end="url(#arrowAccent)" />
+      <text x="300" y="440" text-anchor="middle" font-size="11" fill="var(--accent-strong)" font-weight="600">broadcast over open SSE</text>
+      <text x="300" y="454" text-anchor="middle" font-size="10" fill="var(--accent-strong)">(clients on that instance only)</text>
+    </svg>
+    <figcaption>
+      A write lands on whichever warm function instance handles it, updates Supabase, then pushes an SSE event to every client <em>that same instance</em> is holding open. Static routes never invoke the function at all — <code>vercel.json</code>'s rewrite excludes <code>/api/*</code> and <code>/ref/*</code> so neither can shadow the other.
+    </figcaption>
+  </figure>
+
+  <footer>
+    <span>AudienceQuery — Q&amp;A platform</span>
+    <span>audience-query.vercel.app</span>
+  </footer>
+
+</div>
+</body>
+</html>

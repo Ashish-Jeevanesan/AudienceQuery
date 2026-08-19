@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<title>AudienceQuery — Question Lifecycle</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --surface-raised: #fffdf9;
+    --ink: #1e1b16;
+    --muted: #6b6459;
+    --faint: #8f877a;
+    --accent: #c1793a;
+    --accent-strong: #9c5a22;
+    --accent-soft: #eddcc4;
+    --line: #e4ded3;
+    --line-strong: #d3cabb;
+    --terminal: #a8493a;
+    --terminal-soft: #f3ded9;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  header.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .dek {
+    color: var(--muted);
+    font-size: 15.5px;
+    max-width: 66ch;
+    margin: 0;
+  }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  figure svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+
+  figcaption {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  figcaption code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend .swatch {
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  nav.crosslink {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  nav.crosslink a {
+    color: var(--accent-strong);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+  }
+
+  nav.crosslink a:hover {
+    border-bottom-color: var(--accent-strong);
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    font-size: 12.5px;
+    color: var(--faint);
+    font-family: var(--mono);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .page { padding: 40px 16px 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <span class="eyebrow">Workflow Reference · Fig. 2 of 2</span>
+    <h1>Question Lifecycle</h1>
+    <p class="dek">Who moves a question, and to where. Four roles, one shared record — each arrow is a real status write via <code style="font-family: var(--mono); background: var(--accent-soft); color: var(--accent-strong); padding: 1px 5px; border-radius: 4px;">PATCH /api/questions/:id/status</code>.</p>
+    <nav class="crosslink"><a href="/ref/tech-diag">← Back to the system architecture diagram (Fig. 1)</a></nav>
+  </header>
+
+  <figure>
+    <svg viewBox="0 0 900 560" role="img" aria-label="Swimlane diagram across four lanes — audience, moderator, panel, stage — showing a question moving from submitted (pending), through moderator approve or reject, to pushed, to the panel starting and finishing an answer, while the stage screen updates live via SSE at each handoff.">
+      <defs>
+        <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+        </marker>
+        <marker id="arrowTerminal" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--terminal)" />
+        </marker>
+        <marker id="arrowAccent2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
+        </marker>
+      </defs>
+
+      <g font-family="var(--mono)" font-size="11" letter-spacing="0.04em" fill="currentColor" opacity="0.55">
+        <rect x="0" y="20" width="900" height="120" fill="currentColor" opacity="0.025" />
+        <text x="16" y="36">AUDIENCE</text>
+        <rect x="0" y="160" width="900" height="150" fill="currentColor" opacity="0.05" />
+        <text x="16" y="176">MODERATOR</text>
+        <rect x="0" y="330" width="900" height="120" fill="currentColor" opacity="0.025" />
+        <text x="16" y="346">PANEL</text>
+        <rect x="0" y="470" width="900" height="90" fill="currentColor" opacity="0.05" />
+        <text x="16" y="486">STAGE</text>
+      </g>
+
+      <rect x="60" y="60" width="160" height="60" rx="8" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="140" y="86" text-anchor="middle" font-size="12.5" font-weight="600">Submit question</text>
+      <text x="140" y="104" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--accent-strong)">pending</text>
+
+      <rect x="280" y="182" width="140" height="52" rx="8" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="350" y="203" text-anchor="middle" font-size="12" font-weight="600">Approve</text>
+      <text x="350" y="220" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent-strong)">approved</text>
+
+      <rect x="280" y="252" width="140" height="52" rx="8" fill="var(--terminal-soft)" stroke="var(--terminal)" stroke-opacity="0.6" />
+      <text x="350" y="273" text-anchor="middle" font-size="12" font-weight="600">Reject</text>
+      <text x="350" y="290" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--terminal)">rejected</text>
+
+      <rect x="500" y="182" width="150" height="52" rx="8" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="575" y="203" text-anchor="middle" font-size="12" font-weight="600">Push to panel</text>
+      <text x="575" y="220" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent-strong)">pushed</text>
+
+      <rect x="500" y="356" width="150" height="52" rx="8" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="575" y="377" text-anchor="middle" font-size="12" font-weight="600">Start answering</text>
+      <text x="575" y="394" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent-strong)">answering</text>
+
+      <rect x="700" y="356" width="150" height="52" rx="8" fill="var(--surface-raised)" stroke="currentColor" stroke-opacity="0.7" />
+      <text x="775" y="377" text-anchor="middle" font-size="12" font-weight="600">Mark answered</text>
+      <text x="775" y="394" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent-strong)">answered</text>
+
+      <rect x="500" y="494" width="350" height="52" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-dasharray="4 4" />
+      <text x="675" y="515" text-anchor="middle" font-size="12" font-weight="600">Live slot + up-next ticker</text>
+      <text x="675" y="533" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.6">driven entirely by SSE, no direct handoff</text>
+
+      <path d="M 175 120 L 340 182" fill="none" stroke="currentColor" marker-end="url(#arrow2)" />
+      <text x="200" y="152" font-size="10.5" fill="currentColor" opacity="0.75">moderator approves</text>
+
+      <path d="M 150 120 L 320 252" fill="none" stroke="var(--terminal)" marker-end="url(#arrowTerminal)" />
+      <text x="145" y="182" font-size="10.5" fill="var(--terminal)">moderator rejects</text>
+
+      <path d="M 220 100 C 380 60, 480 140, 505 182" fill="none" stroke="currentColor" stroke-dasharray="3 4" marker-end="url(#arrow2)" />
+      <text x="330" y="88" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">or push directly, skipping approval</text>
+
+      <circle cx="440" cy="278" r="3.5" fill="var(--terminal)" />
+      <text x="452" y="282" font-size="10.5" fill="var(--terminal)">hidden from every view</text>
+
+      <path d="M 420 208 L 500 208" fill="none" stroke="currentColor" marker-end="url(#arrow2)" />
+
+      <path d="M 575 234 L 575 356" fill="none" stroke="currentColor" marker-end="url(#arrow2)" />
+      <text x="583" y="300" font-size="10.5" fill="currentColor" opacity="0.75">appears in panel queue</text>
+
+      <path d="M 650 382 L 700 382" fill="none" stroke="currentColor" marker-end="url(#arrow2)" />
+      <text x="655" y="372" font-size="10" fill="currentColor" opacity="0.7">panel finishes</text>
+
+      <path d="M 575 408 L 575 494" fill="none" stroke="var(--accent)" stroke-dasharray="3 4" marker-end="url(#arrowAccent2)" />
+      <text x="583" y="452" font-size="10" fill="var(--accent-strong)">SSE: now live</text>
+
+      <path d="M 775 408 L 775 494 L 700 494" fill="none" stroke="var(--accent)" stroke-dasharray="3 4" marker-end="url(#arrowAccent2)" />
+      <text x="783" y="452" font-size="10" fill="var(--accent-strong)">SSE: clears live slot</text>
+    </svg>
+    <figcaption>
+      A moderator can approve first or push straight from <code>pending</code> — both land in the same queue. Rejection is a dead end: the question is hidden from every view, including the moderator's default tab. The stage screen never receives a direct handoff; it just reacts to the same SSE stream everyone else does.
+    </figcaption>
+  </figure>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:currentColor;"></span>status write</span>
+    <span><span class="swatch" style="background:var(--accent);"></span>SSE push</span>
+    <span><span class="swatch" style="background:var(--terminal);"></span>terminal / rejected</span>
+  </div>
+
+  <footer>
+    <span>AudienceQuery — Q&amp;A platform</span>
+    <span>audience-query.vercel.app</span>
+  </footer>
+
+</div>
+</body>
+</html>

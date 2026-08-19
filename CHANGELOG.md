@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-19] - Fixed Local Dev Environment and Production Deployment on Vercel
+
+- **Local Dev Fix**: `@supabase/supabase-js` was listed in `package.json` but never actually installed; `npm install` resolved it. Supabase's realtime client requires native `WebSocket` (Node >=22), but the machine was running Node 20.18.1 — switched the active version to the already-installed Node 22.23.1 via `nvm`.
+- **Vercel Deployment — Root Cause**: `vercel.json` had never been committed, so the live Vercel deployment was serving a stale, frontend-only build; every `/api/*` request 404'd, which is what caused "Session not initialized" errors when submitting a question.
+- **Rebuilt Vercel Deployment Config**:
+    - Replaced the legacy `builds`/`routes` config (which requires a pre-built `dist/` to already exist as source, which it doesn't since it's gitignored) with a modern zero-config serverless function at `api/[...slug].ts` that re-exports the Express app.
+    - `server.ts` now guards `app.listen()` behind `!process.env.VERCEL` and exports the `app` for reuse by the serverless function.
+    - Added an SPA fallback rewrite in `vercel.json`, scoped with a negative lookahead so it doesn't shadow `/api/*` requests.
+- **Serverless Compatibility Fixes**:
+    - `server.ts` statically imported `vite` (used only for local dev's hot-reload middleware) at module scope, which risked bloating/breaking the serverless function bundle; changed to a dynamic `import('vite')` inside the dev-only branch so it's never touched in production.
+    - `src/logger.ts` unconditionally wrote log files to disk; Vercel's serverless filesystem is read-only outside `/tmp`. The logger now skips file I/O when `process.env.VERCEL` is set and relies on console output (which Vercel captures as function logs).
+    - Both `api/[...slug].ts` and `server.ts` used extensionless relative imports (e.g. `'../server'`, `'./src/logger'`), which TypeScript's local bundler-mode resolution accepts but Vercel's strict Node ESM runtime does not — added explicit `.js` extensions to fix `ERR_MODULE_NOT_FOUND` crashes.
+    - Removed an unnecessary `engines.node: "22.x"` pin from `package.json` — Vercel's project default (Node 24.x) already satisfies the `>=22` requirement, and the pin was only forcing a downgrade and producing a build warning.
+- **Verified**: Full flow (session creation → state fetch → question submission) confirmed working end-to-end against the live `https://audience-query.vercel.app` deployment.
+
 ## [2026-08-10] - Thematic Refactor and Project Setup
 
 - **Refactored Theme**: Updated the entire application theme from a "Tech Conference" to a "Christian Family Conference" on the topic "To Live is for Christ". This includes all sample data in `server.ts` (questions, categories) and UI text in the frontend components.

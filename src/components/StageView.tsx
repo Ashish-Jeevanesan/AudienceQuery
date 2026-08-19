@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Question, Category, ConferenceEvent } from '../types';
-import { QrCode, Sparkles, Monitor, Maximize2, Radio, ThumbsUp, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
+import { Sparkles, Monitor, Maximize2, Radio, ThumbsUp, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
 
 interface StageViewProps {
   questions: Question[];
@@ -16,6 +17,11 @@ export const StageView: React.FC<StageViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [elapsedSecs, setElapsedSecs] = useState(0);
+
+  // The app has no per-role URL routing -- a fresh visit to the site's
+  // root always lands on the audience/question-submission view, so that's
+  // exactly what the stage QR code should point at.
+  const joinUrl = window.location.origin;
 
   // Active Answering Question
   const currentAnswering = questions.find(q => q.status === 'answering');
@@ -93,7 +99,7 @@ export const StageView: React.FC<StageViewProps> = ({
         {/* Audience Join QR Code & Short Code Banner */}
         <div className="hidden lg:flex items-center space-x-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 px-5 shadow-lg">
           <div className="bg-white p-2 rounded-xl shadow-inner">
-            <QrCode className="w-9 h-9 text-slate-950" />
+            <QRCodeSVG value={joinUrl} size={72} bgColor="#ffffff" fgColor="#020617" level="M" />
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Scan or Visit to Submit Questions</p>
