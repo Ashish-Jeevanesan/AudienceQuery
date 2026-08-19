@@ -14,6 +14,7 @@ import { Footer } from './components/Footer';
 import { ModeratorView } from './components/ModeratorView';
 import { PanelView } from './components/PanelView';
 import { StageView } from './components/StageView';
+import { GlobalLoader } from './components/GlobalLoader';
 import type { ViewRole } from './types';
 import { supabase } from './supabaseClient';
 
@@ -69,6 +70,7 @@ export default function App() {
     categories,
     conferenceEvent,
     isConnected,
+    isBusy,
     activeRole,
     setActiveRole,
     sessionId,
@@ -134,6 +136,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+      <GlobalLoader isVisible={isBusy} />
+
       {/* Top Navbar Header - Shows login prompt if not moderator */}
       <Header
         activeRole={activeRole}

@@ -6,7 +6,7 @@
  * panel queue. It also manages event-wide configuration settings and category definitions.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Question, Category, ConferenceEvent, QuestionStatus } from '../types';
 import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, ThumbsUp, Tag, AlertCircle } from 'lucide-react';
 
@@ -18,7 +18,7 @@ interface ModeratorViewProps {
   categories: Category[];
   conferenceEvent: ConferenceEvent;
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
-  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string }) => void;
+  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
   onCreateCategory: (data: { name: string; color: string; description?: string }) => void;
   onUpdateEvent: (data: Partial<ConferenceEvent>) => void;
@@ -51,11 +51,26 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [editCategoryId, setEditCategoryId] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editIsPriority, setEditIsPriority] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Settings Panel State (toggles visibility of the configuration card)
   const [showSettings, setShowSettings] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('indigo');
+
+  // Event title/subtitle are edited locally and only saved on blur --
+  // saving on every keystroke would fire a request (and the shared
+  // loading overlay) per character typed.
+  const [titleDraft, setTitleDraft] = useState(conferenceEvent.title);
+  const [subtitleDraft, setSubtitleDraft] = useState(conferenceEvent.subtitle);
+
+  useEffect(() => {
+    setTitleDraft(conferenceEvent.title);
+  }, [conferenceEvent.title]);
+
+  useEffect(() => {
+    setSubtitleDraft(conferenceEvent.subtitle);
+  }, [conferenceEvent.subtitle]);
 
   // Metrics for the dashboard counters
   const pendingCount = questions.filter(q => q.status === 'pending').length;
@@ -109,20 +124,28 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setEditCategoryId(q.categoryId);
     setEditNotes(q.moderatorNotes || '');
     setEditIsPriority(q.isPriority);
+    setEditError('');
   };
 
   /**
-   * Saves the changes made in the edit modal.
+   * Saves the changes made in the edit modal. Stays open (showing the
+   * shared loader) until the save actually resolves, and surfaces the
+   * error in-place on failure instead of closing as if it had succeeded.
    */
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingQuestion) return;
-    onEditQuestion(editingQuestion.id, {
-      text: editText,
-      categoryId: editCategoryId,
-      moderatorNotes: editNotes,
-      isPriority: editIsPriority
-    });
-    setEditingQuestion(null);
+    setEditError('');
+    try {
+      await onEditQuestion(editingQuestion.id, {
+        text: editText,
+        categoryId: editCategoryId,
+        moderatorNotes: editNotes,
+        isPriority: editIsPriority
+      });
+      setEditingQuestion(null);
+    } catch (err: any) {
+      setEditError(err?.message || 'Unable to save changes. Please try again.');
+    }
   };
 
   /**
@@ -248,8 +271,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Event Title</label>
                 <input
                   type="text"
-                  value={conferenceEvent.title}
-                  onChange={(e) => onUpdateEvent({ title: e.target.value })}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={() => {
+                    if (titleDraft !== conferenceEvent.title) onUpdateEvent({ title: titleDraft });
+                  }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
                 />
               </div>
@@ -257,8 +283,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Subtitle / Session Name</label>
                 <input
                   type="text"
-                  value={conferenceEvent.subtitle}
-                  onChange={(e) => onUpdateEvent({ subtitle: e.target.value })}
+                  value={subtitleDraft}
+                  onChange={(e) => setSubtitleDraft(e.target.value)}
+                  onBlur={() => {
+                    if (subtitleDraft !== conferenceEvent.subtitle) onUpdateEvent({ subtitle: subtitleDraft });
+                  }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
                 />
               </div>
@@ -519,7 +548,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
                     {/* Toggle Priority Star */}
                     <button
-                      onClick={() => onEditQuestion(q.id, { isPriority: !q.isPriority })}
+                      onClick={() => onEditQuestion(q.id, { isPriority: !q.isPriority }).catch(() => {})}
                       className={`p-2 rounded-xl border text-xs font-semibold transition ${
                         q.isPriority
                           ? 'bg-amber-100 text-amber-800 border-amber-300'
@@ -638,6 +667,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 />
                 <span className="text-xs font-semibold text-slate-800">Mark as High Priority</span>
               </label>
+
+              {editError && (
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                  <AlertCircle className="w-3.5 h-3.5" /> {editError}
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end space-x-2 pt-3 border-t">

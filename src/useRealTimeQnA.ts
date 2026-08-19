@@ -36,6 +36,20 @@ export function useRealTimeQnA() {
 
   const sessionInitialized = useRef(false);
 
+  // Tracks how many DB-backed actions are currently in flight, so the shared
+  // GlobalLoader overlay can stay visible across overlapping actions instead
+  // of one finishing early and hiding it for the others.
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const runTracked = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
+    setPendingCount(c => c + 1);
+    try {
+      return await fn();
+    } finally {
+      setPendingCount(c => Math.max(0, c - 1));
+    }
+  }, []);
+
   const adminFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Administrator sign-in is required');
@@ -178,54 +192,64 @@ export function useRealTimeQnA() {
     isAnonymous: boolean;
     categoryId: string;
   }) => {
-    try {
-      const { deviceInfo, networkInfo } = captureDeviceMetadata();
+    return runTracked(async () => {
+      try {
+        const { deviceInfo, networkInfo } = captureDeviceMetadata();
 
-      if (!sessionInitialized.current) {
-        throw new Error('Session not initialized. Please refresh the page.');
+        if (!sessionInitialized.current) {
+          throw new Error('Session not initialized. Please refresh the page.');
+        }
+
+        const res = await fetch('/api/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...params,
+            deviceInfo,
+            networkInfo
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to submit question');
+        }
+        const newQ: Question = await res.json();
+
+        setMySubmittedIds(prev => {
+          const updated = [newQ.id, ...prev];
+          localStorage.setItem('qna_my_submitted_ids', JSON.stringify(updated));
+          return updated;
+        });
+
+        // Refresh from the server rather than trusting the SSE broadcast to
+        // reach this same client -- on serverless, a broadcast only reaches
+        // clients held open by the same warm function instance that handled
+        // the write, so the submitter isn't guaranteed to see it that way.
+        await fetchFullState();
+
+        return newQ;
+      } catch (err: any) {
+        alert(err.message || 'Submission failed. Please try again.');
+        throw err;
       }
-
-      const res = await fetch('/api/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...params,
-          deviceInfo,
-          networkInfo
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to submit question');
-      }
-      const newQ: Question = await res.json();
-
-      setMySubmittedIds(prev => {
-        const updated = [newQ.id, ...prev];
-        localStorage.setItem('qna_my_submitted_ids', JSON.stringify(updated));
-        return updated;
-      });
-
-      return newQ;
-    } catch (err: any) {
-      alert(err.message || 'Submission failed. Please try again.');
-      throw err;
-    }
-  }, [captureDeviceMetadata]);
+    });
+  }, [captureDeviceMetadata, fetchFullState, runTracked]);
 
   const updateStatus = useCallback(async (questionId: string, status: QuestionStatus, moderatorNotes?: string) => {
-    try {
-      const res = await adminFetch(`/api/questions/${questionId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, moderatorNotes })
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to update question status');
-      await fetchFullState();
-    } catch (err) {
-      console.error('Status update error:', err);
-    }
-  }, [adminFetch, fetchFullState]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/questions/${questionId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, moderatorNotes })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to update question status');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Status update error:', err);
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   const editQuestion = useCallback(async (questionId: string, data: {
     text?: string;
@@ -233,72 +257,88 @@ export function useRealTimeQnA() {
     isPriority?: boolean;
     moderatorNotes?: string;
   }) => {
-    try {
-      const res = await adminFetch(`/api/questions/${questionId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to edit question');
-      await fetchFullState();
-    } catch (err) {
-      console.error('Edit error:', err);
-    }
-  }, [adminFetch, fetchFullState]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/questions/${questionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to edit question');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Edit error:', err);
+        // Rethrown so the edit modal can stay open and show the error
+        // instead of closing as if the save had succeeded.
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   const deleteQuestion = useCallback(async (questionId: string) => {
-    try {
-      const res = await adminFetch(`/api/questions/${questionId}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to delete question');
-      await fetchFullState();
-    } catch (err) {
-      console.error('Delete error:', err);
-    }
-  }, [adminFetch, fetchFullState]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/questions/${questionId}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to delete question');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Delete error:', err);
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   const createCategory = useCallback(async (data: { name: string; color: string; description?: string }) => {
-    try {
-      const res = await adminFetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to create category');
-      await fetchFullState();
-    } catch (err) {
-      console.error('Category create error:', err);
-    }
-  }, [adminFetch, fetchFullState]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to create category');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Category create error:', err);
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   const updateEvent = useCallback(async (data: Partial<ConferenceEvent>) => {
-    try {
-      const res = await adminFetch('/api/event', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to update event');
-    } catch (err) {
-      console.error('Update event error:', err);
-    }
-  }, [adminFetch]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/event', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to update event');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Update event error:', err);
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   const resetDemoData = useCallback(async () => {
-    try {
-      const res = await adminFetch('/api/reset', { method: 'POST' });
-      if (!res.ok) throw new Error((await res.json()).error || 'Unable to reset data');
-    } catch (err) {
-      console.error('Reset error:', err);
-    }
-  }, [adminFetch]);
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/reset', { method: 'POST' });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to reset data');
+        await fetchFullState();
+      } catch (err) {
+        console.error('Reset error:', err);
+      }
+    });
+  }, [adminFetch, fetchFullState, runTracked]);
 
   return {
     questions,
     categories,
     conferenceEvent,
     isConnected,
+    isBusy: pendingCount > 0,
     activeRole,
     setActiveRole,
     sessionId: 'managed-by-cookies',

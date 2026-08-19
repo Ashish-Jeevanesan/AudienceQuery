@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-19] - Stage QR Code, Workflow Reference Pages, Shared Loading State, Favicon
+
+- **Stage QR Code**: The "QR code" on the Stage screen was a decorative icon glyph, not an actual scannable code. Replaced it with a real one (`qrcode.react`) pointing at the site's root URL — the app has no per-role URL routing, so a fresh visit already lands on the audience/question-submission view by default.
+- **Workflow Reference Pages**: Added two standalone, light-mode-only HTML pages documenting the system architecture and the question lifecycle as hand-drawn SVG diagrams, served as static files under `public/ref/` at:
+    - System Architecture — https://audience-query.vercel.app/ref/tech-diag
+    - Question Lifecycle — https://audience-query.vercel.app/ref/user-diag
+- **Follow-up Routing Fix**: `PATCH /api/questions/:id/status` (and every other `/api/*` route with 2+ path segments) was 404ing at the Vercel platform level — the `api/[...slug].ts` catch-all filename only matched a single path segment in production, so nested routes never reached the Express app at all. Renamed the function to `api/index.ts` and added an explicit `"/api/:path* -> /api"` rewrite in `vercel.json` so every request under `/api/` reaches the same function regardless of depth or method, instead of depending on catch-all filename semantics that don't behave as expected outside a Next.js project.
+- **Shared Loading State**: Audited every DB-backed action (submit question, approve/reject/push, edit, delete, add category, event settings, start/mark answered, reset demo) — most fired the request with zero visual feedback and didn't wait for it to resolve. Added a single tracked-action wrapper in `useRealTimeQnA` (exposed as `isBusy`) and a full-screen `GlobalLoader` overlay shown for the duration of any in-flight action, with the UI refreshed from the server before the loader hides so the update is guaranteed to be on screen, not just assumed via SSE.
+    - The moderator Edit Question modal now stays open until the save actually resolves and shows the error in place on failure, instead of closing immediately regardless of outcome.
+    - The Event Title/Subtitle fields switched from saving on every keystroke to saving on blur, since autosave-per-character would have fired the loader on every character typed.
+- **Favicon**: Added a vector favicon (`public/favicon.svg`) — an indigo badge with "AQ" in white, matching the existing brand color used for the header's "Q" logo.
+
 ## [2026-08-19] - Fixed Local Dev Environment and Production Deployment on Vercel
 
 - **Local Dev Fix**: `@supabase/supabase-js` was listed in `package.json` but never actually installed; `npm install` resolved it. Supabase's realtime client requires native `WebSocket` (Node >=22), but the machine was running Node 20.18.1 — switched the active version to the already-installed Node 22.23.1 via `nvm`.

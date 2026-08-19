@@ -19,7 +19,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   const [authorName, setAuthorName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
@@ -27,9 +26,11 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
     e.preventDefault();
     if (!questionText.trim()) return;
 
-    setIsSubmitting(true);
     setErrorMsg('');
     try {
+      // The shared GlobalLoader (driven by useRealTimeQnA's isBusy) covers
+      // the network wait here, so this view doesn't track its own pending
+      // state.
       await onSubmit({
         text: questionText,
         authorName,
@@ -42,8 +43,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
       setTimeout(() => setSubmittedSuccess(false), 4000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit question. Please try again.');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -137,7 +136,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                   onChange={(e) => setQuestionText(e.target.value)}
                   placeholder="Share what's on your mind..."
                   className="input-base w-full h-32 resize-none"
-                  disabled={isSubmitting}
                 />
                 <p className="text-xs font-medium" style={{ color: `rgb(var(--text-muted))` }}>
                   {questionText.length} characters
@@ -153,7 +151,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                       checked={isAnonymous}
                       onChange={(e) => setIsAnonymous(e.target.checked)}
                       className="w-5 h-5 opacity-0 absolute"
-                      disabled={isSubmitting}
                     />
                     <div className="w-5 h-5 rounded border-2 flex items-center justify-center transition-all" style={{
                       borderColor: isAnonymous ? `rgb(var(--primary))` : `rgb(var(--input-border))`,
@@ -180,7 +177,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                     onChange={(e) => setAuthorName(e.target.value)}
                     placeholder="Enter your name"
                     className="input-base w-full"
-                    disabled={isSubmitting}
                   />
                 </div>
               )}
@@ -201,7 +197,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                       backgroundRepeat: 'no-repeat',
                       paddingRight: '2.5rem'
                     }}
-                    disabled={isSubmitting}
                   >
                     <option value="">Select a topic...</option>
                     {categories.map((cat) => (
@@ -214,11 +209,11 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || !questionText.trim()}
+                disabled={!questionText.trim()}
                 className="btn-base btn-primary-lg w-full mt-8"
               >
                 <Send className="w-5 h-5" />
-                <span>{isSubmitting ? 'Submitting...' : 'Submit Question'}</span>
+                <span>Submit Question</span>
               </button>
             </form>
           </div>

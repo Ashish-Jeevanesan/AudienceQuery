@@ -12,6 +12,13 @@ A real-time, interactive Q&A platform designed for live events, conferences, and
                                   [ Projected Stage Display ] <──(Live On-Stage)─── [ Panel Members ]
 ```
 
+## Reference Diagrams
+
+Visual references for how the system actually works, deployed alongside the app:
+
+- [System Architecture](https://audience-query.vercel.app/ref/tech-diag) — where a request goes: browser → Vercel edge (static) / serverless function (API + SSE) → Supabase.
+- [Question Lifecycle](https://audience-query.vercel.app/ref/user-diag) — who moves a question, and to where, across Audience → Moderator → Panel → Stage.
+
 ## Key Functional Views & Features
 
 ### 📱 Audience Submission Interface (`/audience`)
