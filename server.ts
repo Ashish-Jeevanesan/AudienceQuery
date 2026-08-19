@@ -724,7 +724,13 @@ async function startServer() {
   });
 }
 
-startServer();
+// On Vercel, requests are routed to this app via a serverless function
+// (api/[...slug].ts) instead of a long-running process, so skip app.listen().
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
 
 
 
