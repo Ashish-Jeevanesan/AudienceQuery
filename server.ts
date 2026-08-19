@@ -11,8 +11,8 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
-import { Question, Category, ConferenceEvent, QuestionStatus } from './src/types';
-import { logger } from './src/logger';
+import { Question, Category, ConferenceEvent, QuestionStatus } from './src/types.js';
+import { logger } from './src/logger.js';
 
 // Helper: Hash session ID for safe logging
 const hashSessionId = (sessionId: string) =>
