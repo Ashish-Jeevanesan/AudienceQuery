@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Question, Category, ConferenceEvent } from '../types';
-import { Sparkles, Monitor, Maximize2, Radio, ThumbsUp, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
+import { Sparkles, Monitor, Maximize2, Radio, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
 
 interface StageViewProps {
   questions: Question[];
@@ -140,10 +140,6 @@ export const StageView: React.FC<StageViewProps> = ({
                 <span className={`px-4 py-1.5 rounded-xl text-sm font-extrabold border ${getCategoryBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
                   {currentAnswering.categoryName}
                 </span>
-
-                <span className="px-3 py-1 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center">
-                  <ThumbsUp className="w-4 h-4 mr-1.5" /> {currentAnswering.upvotes} Audience Votes
-                </span>
               </div>
 
               <div className="flex items-center space-x-2 bg-slate-900 px-4 py-2 rounded-2xl border border-indigo-500/30 font-mono text-sm text-indigo-300 font-bold">
@@ -198,12 +194,9 @@ export const StageView: React.FC<StageViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {stageQueue.slice(0, 3).map((q) => (
               <div key={q.id} className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
                     {q.categoryName}
-                  </span>
-                  <span className="text-[10px] text-slate-400 flex items-center">
-                    <ThumbsUp className="w-3 h-3 mr-0.5 text-indigo-400" /> {q.upvotes}
                   </span>
                 </div>
                 <p className="text-slate-200 font-medium line-clamp-2">

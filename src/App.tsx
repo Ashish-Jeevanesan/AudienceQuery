@@ -135,7 +135,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen text-primary font-sans antialiased selection:bg-indigo-500 selection:text-white">
       <GlobalLoader isVisible={isBusy} />
 
       {/* Top Navbar Header - Shows login prompt if not moderator */}
@@ -203,18 +203,18 @@ export default function App() {
 
       {isLoginOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <form onSubmit={submitModeratorLogin} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-slate-900">Administrator access</h2>
-            <p className="mt-1 text-sm text-slate-600">Sign in with the administrator account created in Supabase.</p>
-            <label className="mt-5 block text-sm font-medium text-slate-700">Email
-              <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="email" />
+          <form onSubmit={submitModeratorLogin} className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-primary">Administrator access</h2>
+            <p className="mt-1 text-sm text-secondary">Sign in with the administrator account created in Supabase.</p>
+            <label className="mt-5 block text-sm font-medium text-secondary">Email
+              <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base mt-1 w-full" autoComplete="email" />
             </label>
-            <label className="mt-3 block text-sm font-medium text-slate-700">Password
-              <input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" autoComplete="current-password" />
+            <label className="mt-3 block text-sm font-medium text-secondary">Password
+              <input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="input-base mt-1 w-full" autoComplete="current-password" />
             </label>
             {loginError && <p className="mt-3 text-sm text-rose-600">{loginError}</p>}
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setIsLoginOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600">Cancel</button>
+              <button type="button" onClick={() => setIsLoginOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-secondary">Cancel</button>
               <button disabled={isLoggingIn} type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isLoggingIn ? 'Signing in…' : 'Sign in'}</button>
             </div>
           </form>

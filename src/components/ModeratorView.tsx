@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Question, Category, ConferenceEvent, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, ThumbsUp, Tag, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle } from 'lucide-react';
 
 /**
  * Props for the ModeratorView component.
@@ -43,7 +43,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'upvotes' | 'recent' | 'priority'>('upvotes');
+  const [sortBy, setSortBy] = useState<'recent' | 'priority'>('recent');
 
   // Edit Modal State for editing a specific question
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -105,12 +105,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
   // Sort the filtered questions based on user selection
   filtered.sort((a, b) => {
-    if (sortBy === 'priority') {
-      if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
-      return b.upvotes - a.upvotes;
-    }
-    if (sortBy === 'upvotes') {
-      return b.upvotes - a.upvotes;
+    if (sortBy === 'priority' && a.isPriority !== b.isPriority) {
+      return a.isPriority ? -1 : 1;
     }
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
@@ -211,15 +207,15 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-surface rounded-2xl p-4 border border-divider shadow-sm flex flex-col justify-between">
           <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Review Inbox</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-slate-900">{pendingCount}</span>
+            <span className="text-2xl font-black text-primary">{pendingCount}</span>
             <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-bold">Pending</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-indigo-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-surface rounded-2xl p-4 border border-indigo-200 shadow-sm flex flex-col justify-between">
           <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Panel Queue</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-indigo-600">{pushedCount}</span>
@@ -227,7 +223,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col justify-between">
+        <div className="bg-surface rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col justify-between">
           <span className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Live on Stage</span>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-rose-600">{answeringCount}</span>
@@ -235,18 +231,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Public Feed</span>
+        <div className="bg-surface rounded-2xl p-4 border border-divider shadow-sm flex flex-col justify-between">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wider">In Public Feed</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-slate-800">{approvedCount}</span>
-            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">Visible</span>
+            <span className="text-2xl font-black text-primary">{approvedCount}</span>
+            <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium">Visible</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm col-span-2 sm:col-span-1 flex flex-col justify-between">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Answered</span>
+        <div className="bg-surface rounded-2xl p-4 border border-divider shadow-sm col-span-2 sm:col-span-1 flex flex-col justify-between">
+          <span className="text-xs font-semibold text-muted uppercase tracking-wider">Answered</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-slate-800">{answeredCount}</span>
+            <span className="text-2xl font-black text-primary">{answeredCount}</span>
             <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">Completed</span>
           </div>
         </div>
@@ -254,21 +250,21 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Settings Modal Drawer */}
       {showSettings && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-300 shadow-xl space-y-5 animate-fadeIn">
-          <div className="flex items-center justify-between border-b pb-3">
-            <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
+        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
               <Settings className="w-5 h-5 text-indigo-600" />
               <span>Conference Settings & Topics</span>
             </h3>
-            <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            <button onClick={() => setShowSettings(false)} className="text-muted hover:text-secondary font-bold">✕</button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Event Branding */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Conference Info</h4>
+              <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Conference Info</h4>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Event Title</label>
+                <label className="block text-xs font-semibold text-secondary mb-1">Event Title</label>
                 <input
                   type="text"
                   value={titleDraft}
@@ -276,11 +272,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   onBlur={() => {
                     if (titleDraft !== conferenceEvent.title) onUpdateEvent({ title: titleDraft });
                   }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Subtitle / Session Name</label>
+                <label className="block text-xs font-semibold text-secondary mb-1">Subtitle / Session Name</label>
                 <input
                   type="text"
                   value={subtitleDraft}
@@ -288,14 +284,14 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   onBlur={() => {
                     if (subtitleDraft !== conferenceEvent.subtitle) onUpdateEvent({ subtitle: subtitleDraft });
                   }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                 />
               </div>
             </div>
 
             {/* Add Custom Category */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add New Topic</h4>
+              <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Add New Topic</h4>
               <form onSubmit={handleAddCategory} className="space-y-3">
                 <div className="flex gap-2">
                   <input
@@ -303,12 +299,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     placeholder="Topic Name (e.g., Parenting)"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                    className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                   />
                   <select
                     value={newCatColor}
                     onChange={(e) => setNewCatColor(e.target.value)}
-                    className="px-2 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white"
+                    className="px-2 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
                   >
                     <option value="indigo">Indigo</option>
                     <option value="emerald">Emerald</option>
@@ -337,16 +333,16 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       )}
 
       {/* Filter and Tab Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-4">
-        
+      <div className="bg-surface rounded-2xl p-4 border border-divider shadow-sm space-y-4">
+
         {/* Primary Status Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none border-b border-slate-100">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none border-b border-divider">
           <button
             onClick={() => setActiveTab('pending')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'pending'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>Review Inbox</span>
@@ -358,7 +354,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'pushed'
                 ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>Panel Queue</span>
@@ -370,7 +366,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'approved'
                 ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>Public Feed</span>
@@ -382,7 +378,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'answering_answered'
                 ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>Live / Answered</span>
@@ -394,7 +390,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'rejected'
                 ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>Rejected</span>
@@ -405,7 +401,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'all'
                 ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-secondary hover:bg-surface-secondary'
             }`}
           >
             <span>All ({questions.length})</span>
@@ -416,13 +412,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           
           <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-muted absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Search questions, authors, or notes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -430,7 +426,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white outline-none"
+              className="px-3 py-1.5 rounded-xl border border-divider text-xs text-secondary bg-surface outline-none"
             >
               <option value="all">All Topics</option>
               {categories.map(c => (
@@ -441,9 +437,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-white outline-none"
+              className="px-3 py-1.5 rounded-xl border border-divider text-xs text-secondary bg-surface outline-none"
             >
-              <option value="upvotes">Sort by Votes</option>
               <option value="priority">Sort by Priority</option>
               <option value="recent">Sort by Newest</option>
             </select>
@@ -455,10 +450,10 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Question Cards Feed */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-3">
-          <MessageSquare className="w-10 h-10 text-slate-300 mx-auto" />
-          <h4 className="text-slate-700 font-semibold">No questions in this view.</h4>
-          <p className="text-xs text-slate-400">Questions from the audience will appear in the 'Review Inbox' tab.</p>
+        <div className="bg-surface rounded-2xl p-12 text-center border border-divider space-y-3">
+          <MessageSquare className="w-10 h-10 text-disabled mx-auto" />
+          <h4 className="text-secondary font-semibold">No questions in this view.</h4>
+          <p className="text-xs text-muted">Questions from the audience will appear in the 'Review Inbox' tab.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -468,14 +463,14 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             return (
               <div
                 key={q.id}
-                className={`bg-white rounded-2xl p-5 border transition-all ${
+                className={`bg-surface rounded-2xl p-5 border transition-all ${
                   q.isPriority
                     ? 'border-amber-300 ring-2 ring-amber-500/20 bg-amber-50/20'
                     : q.status === 'pushed'
                     ? 'border-indigo-300 ring-2 ring-indigo-500/10 bg-indigo-50/10'
                     : q.status === 'answering'
                     ? 'border-rose-300 ring-2 ring-rose-500/20 bg-rose-50/20'
-                    : 'border-slate-200/80 hover:border-slate-300'
+                    : 'border-divider hover:border-divider-strong'
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
@@ -494,23 +489,19 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         </span>
                       )}
 
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                        <ThumbsUp className="w-3 h-3 inline mr-1 text-slate-500" /> {q.upvotes} Votes
-                      </span>
-
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-muted">
                         {new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
-                    <p className="text-slate-900 font-semibold text-base leading-snug">
+                    <p className="text-primary font-semibold text-base leading-snug">
                       {q.text}
                     </p>
 
-                    <div className="flex items-center space-x-3 text-xs text-slate-500">
-                      <span>From: <strong className="text-slate-800">{q.authorName}</strong></span>
+                    <div className="flex items-center space-x-3 text-xs text-muted">
+                      <span>From: <strong className="text-primary">{q.authorName}</strong></span>
                       {q.moderatorNotes && (
-                        <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-mono text-[11px]">
+                        <span className="bg-surface-secondary px-2 py-0.5 rounded text-secondary font-mono text-[11px]">
                           Moderator Note: {q.moderatorNotes}
                         </span>
                       )}
@@ -519,7 +510,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   </div>
 
                   {/* Right Actions Bar */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-divider">
                     
                     {/* Primary Action: PUSH TO PANEL */}
                     {q.status !== 'pushed' && q.status !== 'answering' && (
@@ -552,7 +543,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       className={`p-2 rounded-xl border text-xs font-semibold transition ${
                         q.isPriority
                           ? 'bg-amber-100 text-amber-800 border-amber-300'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          : 'bg-surface-secondary text-secondary border-divider hover:bg-surface-hover'
                       }`}
                       title="Toggle Priority Star"
                     >
@@ -562,7 +553,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {/* Edit Details Button */}
                     <button
                       onClick={() => openEditModal(q)}
-                      className="p-2 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 transition"
+                      className="p-2 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
                       title="Edit text / category / notes"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -590,7 +581,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     ) : (
                       <button
                         onClick={() => onUpdateStatus(q.id, 'pending')}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-medium text-xs hover:bg-slate-200"
+                        className="px-2.5 py-1.5 rounded-xl bg-surface-secondary text-secondary font-medium text-xs hover:bg-surface-hover"
                       >
                         Restore
                       </button>
@@ -599,7 +590,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {/* Delete */}
                     <button
                       onClick={() => onDeleteQuestion(q.id)}
-                      className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                      className="p-2 rounded-xl bg-surface-secondary text-muted hover:text-rose-600 hover:bg-rose-50 border border-divider transition"
                       title="Delete permanently"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -617,29 +608,29 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       {/* Edit Question Modal */}
       {editingQuestion && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-200 animate-fadeIn">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="font-bold text-slate-900 text-base">Edit Question</h3>
-              <button onClick={() => setEditingQuestion(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+          <div className="bg-surface rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-divider animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-divider pb-3">
+              <h3 className="font-bold text-primary text-base">Edit Question</h3>
+              <button onClick={() => setEditingQuestion(null)} className="text-muted hover:text-secondary font-bold">✕</button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Question Text</label>
+                <label className="block text-xs font-semibold text-secondary mb-1">Question Text</label>
                 <textarea
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Change Topic</label>
+                <label className="block text-xs font-semibold text-secondary mb-1">Change Topic</label>
                 <select
                   value={editCategoryId}
                   onChange={(e) => setEditCategoryId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white"
+                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
                 >
                   {categories.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -648,13 +639,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Internal Moderator Note</label>
+                <label className="block text-xs font-semibold text-secondary mb-1">Internal Moderator Note</label>
                 <input
                   type="text"
                   placeholder="e.g., Direct to panelist David, or merge with q-104"
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -665,7 +656,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   onChange={(e) => setEditIsPriority(e.target.checked)}
                   className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                 />
-                <span className="text-xs font-semibold text-slate-800">Mark as High Priority</span>
+                <span className="text-xs font-semibold text-secondary">Mark as High Priority</span>
               </label>
 
               {editError && (
@@ -675,10 +666,10 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               )}
             </div>
 
-            <div className="flex justify-end space-x-2 pt-3 border-t">
+            <div className="flex justify-end space-x-2 pt-3 border-t border-divider">
               <button
                 onClick={() => setEditingQuestion(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold hover:bg-slate-200"
+                className="px-4 py-2 rounded-xl bg-surface-secondary text-secondary text-xs font-semibold hover:bg-surface-hover"
               >
                 Cancel
               </button>

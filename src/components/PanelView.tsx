@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Question, Category, QuestionStatus } from '../types';
-import { Mic, CheckCircle2, Clock, ThumbsUp, Eye, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
+import { Mic, CheckCircle2, Clock, Eye, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
 
 /**
  * Props for the PanelView component.
@@ -140,9 +140,6 @@ export const PanelView: React.FC<PanelViewProps> = ({
                   <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${getBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
                     {currentAnswering.categoryName}
                   </span>
-                  <span className="px-3 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center">
-                    <ThumbsUp className="w-3.5 h-3.5 mr-1" /> {currentAnswering.upvotes} Votes
-                  </span>
                 </div>
 
                 <div className="flex items-center space-x-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-indigo-500/40 text-xs font-mono text-indigo-300 font-bold">
@@ -240,10 +237,6 @@ export const PanelView: React.FC<PanelViewProps> = ({
                               ★ Priority
                             </span>
                           )}
-
-                          <span className="text-xs text-slate-400 font-semibold flex items-center">
-                            <ThumbsUp className="w-3 h-3 mr-1 text-indigo-400" /> {q.upvotes} Votes
-                          </span>
                         </div>
 
                         <p className="text-white font-bold text-lg sm:text-xl leading-snug">

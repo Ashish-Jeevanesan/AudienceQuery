@@ -1,11 +1,11 @@
 # AudienceQuery
 
-A real-time, interactive Q&A platform designed for live events, conferences, and panels. It empowers audience members to submit and upvote questions, while giving moderators and panelists the tools to manage, prioritize, and display them seamlessly.
+A real-time, interactive Q&A platform designed for live events, conferences, and panels. It empowers audience members to submit questions, while giving moderators and panelists the tools to manage, prioritize, and display them seamlessly.
 
 ## System Architecture
 
 ```
-[ Audience Mobile ] ──(Post/Upvote)──> [ Express SSE Server ] ──(Broadcast)──> [ Moderator Bridge ]
+[ Audience Mobile ] ────(Submit)────> [ Express SSE Server ] ──(Broadcast)──> [ Moderator Bridge ]
                                               │                                         │
                                               │                                  (Push to Panel)
                                               ▼                                         ▼
@@ -23,7 +23,6 @@ Visual references for how the system actually works, deployed alongside the app:
 
 ### 📱 Audience Submission Interface (`/audience`)
 - **Mobile-Optimized Submission**: Audience members can submit questions with custom names or anonymously with custom category tags.
-- **Community Upvoting**: Real-time upvoting allowing attendees to highlight high-interest questions.
 - **Live Status Badges**: Audience members track their submitted questions through stages: In Review → Pushed to Panel → Answering Live 🎙️ → Answered.
 
 ### 🛡️ Backend Moderator Bridge Dashboard (`/moderator`)
@@ -117,7 +116,6 @@ The core of the application is an Express server that provides a REST API and a 
 - `GET /api/stream`: Establishes an SSE connection to receive live state updates.
 - `GET /api/state`: Retrieves the complete current state of questions, categories, and event settings.
 - `POST /api/questions`: Submits a new question.
-- `POST /api/questions/:id/upvote`: Upvotes or removes an upvote for a question.
 - `PATCH /api/questions/:id/status`: Updates the status of a question (e.g., 'pending', 'pushed', 'answering').
 - `PATCH /api/questions/:id`: Edits the details of a question.
 - `POST /api/reset`: Resets the in-memory data to a sample set (for demonstration purposes).
