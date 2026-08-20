@@ -285,4 +285,31 @@
   .transition-smooth {
     transition: all 0.2s ease;
   }
+
+  /* Category badges: tinted-on-light in light mode, light-text-on-tint in
+     dark mode. Used anywhere a topic/category color needs to track the
+     global data-theme toggle rather than a fixed light or dark surface. */
+  .cat-badge-indigo { background-color: rgba(99, 102, 241, 0.1); color: rgb(67, 56, 202); border-color: rgba(99, 102, 241, 0.25); }
+  .cat-badge-emerald { background-color: rgba(16, 185, 129, 0.1); color: rgb(4, 120, 87); border-color: rgba(16, 185, 129, 0.25); }
+  .cat-badge-amber { background-color: rgba(245, 158, 11, 0.12); color: rgb(146, 64, 14); border-color: rgba(245, 158, 11, 0.3); }
+  .cat-badge-rose { background-color: rgba(244, 63, 94, 0.1); color: rgb(190, 18, 60); border-color: rgba(244, 63, 94, 0.25); }
+  .cat-badge-sky { background-color: rgba(14, 165, 233, 0.1); color: rgb(3, 105, 161); border-color: rgba(14, 165, 233, 0.25); }
+
+  [data-theme="dark"] .cat-badge-indigo { background-color: rgba(129, 140, 248, 0.15); color: rgb(199, 210, 254); border-color: rgba(129, 140, 248, 0.3); }
+  [data-theme="dark"] .cat-badge-emerald { background-color: rgba(52, 211, 153, 0.15); color: rgb(167, 243, 208); border-color: rgba(52, 211, 153, 0.3); }
+  [data-theme="dark"] .cat-badge-amber { background-color: rgba(251, 191, 36, 0.15); color: rgb(253, 230, 138); border-color: rgba(251, 191, 36, 0.3); }
+  [data-theme="dark"] .cat-badge-rose { background-color: rgba(251, 113, 133, 0.15); color: rgb(254, 205, 211); border-color: rgba(251, 113, 133, 0.3); }
+  [data-theme="dark"] .cat-badge-sky { background-color: rgba(56, 189, 248, 0.15); color: rgb(186, 230, 253); border-color: rgba(56, 189, 248, 0.3); }
+
+  /* Shared "now live" spotlight card background for Panel and Stage --
+     a subtle indigo-tinted glow anchored to the theme's own surface
+     color, so it reads correctly in both light and dark. */
+  .live-spotlight-card {
+    background-image: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgb(var(--surface)) 60%);
+    border-color: rgba(99, 102, 241, 0.35);
+  }
+  [data-theme="dark"] .live-spotlight-card {
+    background-image: linear-gradient(135deg, rgba(129, 140, 248, 0.2), rgb(var(--surface)) 55%, rgb(var(--background)) 100%);
+    border-color: rgba(129, 140, 248, 0.4);
+  }
 }

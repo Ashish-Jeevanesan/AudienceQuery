@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Question, Category, ConferenceEvent } from '../types';
-import { Sparkles, Monitor, Maximize2, Radio, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
+import { Sparkles, Monitor, Maximize2, Radio, Clock } from 'lucide-react';
 
 interface StageViewProps {
   questions: Question[];
@@ -15,7 +15,6 @@ export const StageView: React.FC<StageViewProps> = ({
   conferenceEvent
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark');
   const [elapsedSecs, setElapsedSecs] = useState(0);
 
   // The app has no per-role URL routing -- a fresh visit to the site's
@@ -63,68 +62,63 @@ export const StageView: React.FC<StageViewProps> = ({
 
   const getCategoryBadgeColor = (colorName: string) => {
     switch (colorName) {
-      case 'indigo': return 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30';
-      case 'emerald': return 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30';
-      case 'amber': return 'bg-amber-500/20 text-amber-300 border-amber-400/30';
-      case 'rose': return 'bg-rose-500/20 text-rose-300 border-rose-400/30';
-      default: return 'bg-sky-500/20 text-sky-300 border-sky-400/30';
+      case 'indigo': return 'cat-badge-indigo';
+      case 'emerald': return 'cat-badge-emerald';
+      case 'amber': return 'cat-badge-amber';
+      case 'rose': return 'cat-badge-rose';
+      default: return 'cat-badge-sky';
     }
   };
 
   return (
-    <div className={`min-h-[calc(100vh-65px)] flex flex-col justify-between p-6 sm:p-10 transition-colors ${
-      themeMode === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
-    }`}>
-      
+    <div className="min-h-[calc(100vh-65px)] flex flex-col justify-between p-6 sm:p-10 transition-colors text-primary">
+
       {/* Top Stage Header */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-6">
-        
-        {/* Conference Branding */}
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/20">
-            <Sparkles className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-3">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{conferenceEvent.title}</h1>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                <Radio className="w-3.5 h-3.5 mr-1.5 animate-pulse" />
-                LIVE ON STAGE
-              </span>
+      <div className="border-b border-divider pb-6 space-y-4">
+
+        <div className="flex items-center justify-between gap-4">
+          {/* Conference Branding */}
+          <div className="flex items-center space-x-4 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/20 shrink-0">
+              <Sparkles className="w-7 h-7 text-white" />
             </div>
-            <p className="text-sm text-slate-400 mt-0.5">{conferenceEvent.subtitle}</p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-primary truncate">{conferenceEvent.title}</h1>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
+                  <Radio className="w-3.5 h-3.5 mr-1.5 animate-pulse" />
+                  LIVE ON STAGE
+                </span>
+              </div>
+              <p className="text-sm mt-0.5 text-muted truncate">{conferenceEvent.subtitle}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Audience Join QR Code & Short Code Banner */}
-        <div className="hidden lg:flex items-center space-x-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 px-5 shadow-lg">
-          <div className="bg-white p-2 rounded-xl shadow-inner">
-            <QRCodeSVG value={joinUrl} size={72} bgColor="#ffffff" fgColor="#020617" level="M" />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Scan or Visit to Submit Questions</p>
-            <p className="text-sm font-black text-white tracking-wide">
-              Join Code: <span className="text-amber-400 font-mono">{conferenceEvent.joinCode}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Display Controls */}
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 font-semibold hover:bg-slate-800 transition"
-          >
-            {themeMode === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
-          </button>
-
+          {/* Display Controls */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition"
+            className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition shrink-0"
             title="Toggle Fullscreen Presentation"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Audience Join QR Code & Short Code Banner -- always centered on the
+            row regardless of how wide the branding/controls above are, and
+            never hidden, so it reflows down to phone-width screens too. */}
+        <div className="flex justify-center">
+          <div className="flex items-center space-x-4 border border-divider rounded-2xl p-3 px-5 shadow-lg bg-surface">
+            <div className="bg-white p-2 rounded-xl shadow-inner shrink-0">
+              <QRCodeSVG value={joinUrl} size={64} bgColor="#ffffff" fgColor="#020617" level="M" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'rgb(var(--primary))' }}>Scan or Visit to Submit Questions</p>
+              <p className="text-sm font-black tracking-wide text-primary">
+                Join Code: <span className="font-mono text-amber-500">{conferenceEvent.joinCode}</span>
+              </p>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -133,7 +127,7 @@ export const StageView: React.FC<StageViewProps> = ({
       <div className="my-auto py-8">
         {currentAnswering ? (
           <div className="max-w-5xl mx-auto space-y-8 animate-fadeIn">
-            
+
             {/* Header Status Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-3">
@@ -142,23 +136,23 @@ export const StageView: React.FC<StageViewProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center space-x-2 bg-slate-900 px-4 py-2 rounded-2xl border border-indigo-500/30 font-mono text-sm text-indigo-300 font-bold">
-                <Clock className="w-4 h-4 text-indigo-400" />
+              <div className="flex items-center space-x-2 px-4 py-2 rounded-2xl border border-divider-strong font-mono text-sm font-bold bg-surface-secondary" style={{ color: 'rgb(var(--primary))' }}>
+                <Clock className="w-4 h-4" style={{ color: 'rgb(var(--primary))' }} />
                 <span>Time: {formatTimer(elapsedSecs)}</span>
               </div>
             </div>
 
             {/* MAIN QUESTION DISPLAY */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 rounded-3xl p-8 sm:p-12 border-2 border-indigo-500/50 shadow-2xl space-y-6 relative overflow-hidden">
-              <p className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight tracking-tight text-white drop-shadow-md">
+            <div className="live-spotlight-card rounded-3xl p-8 sm:p-12 border-2 shadow-2xl space-y-6 relative overflow-hidden">
+              <p className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight tracking-tight drop-shadow-md text-primary">
                 "{currentAnswering.text}"
               </p>
 
-              <div className="pt-6 border-t border-slate-800 flex items-center justify-between">
-                <div className="text-base text-slate-300">
-                  Question from: <strong className="text-white font-bold">{currentAnswering.authorName}</strong>
+              <div className="pt-6 border-t border-divider flex items-center justify-between">
+                <div className="text-base text-secondary">
+                  Question from: <strong className="font-bold text-primary">{currentAnswering.authorName}</strong>
                 </div>
-                <div className="text-xs text-indigo-300/70 font-mono">
+                <div className="text-xs font-mono" style={{ color: 'rgb(var(--primary))', opacity: 0.75 }}>
                   Live Conference Panel
                 </div>
               </div>
@@ -170,43 +164,46 @@ export const StageView: React.FC<StageViewProps> = ({
         ) : (
           <div className="max-w-3xl mx-auto text-center space-y-4 py-12">
             <Monitor className="w-16 h-16 text-indigo-400/60 mx-auto animate-bounce" />
-            <h2 className="text-3xl font-extrabold text-slate-200">Panel Live Q&A in Progress</h2>
-            <p className="text-slate-400 text-sm max-w-lg mx-auto">
-              Audience members can scan the QR code or enter Join Code <strong className="text-amber-400 font-mono">{conferenceEvent.joinCode}</strong> to submit live questions.
+            <h2 className="text-3xl font-extrabold text-secondary">Panel Live Q&A in Progress</h2>
+            <p className="text-sm max-w-lg mx-auto text-muted">
+              Audience members can scan the QR code or enter Join Code <strong className="font-mono text-amber-500">{conferenceEvent.joinCode}</strong> to submit live questions.
             </p>
           </div>
         )}
       </div>
 
       {/* FOOTER TICKER: UP NEXT ON STAGE */}
-      <div className="border-t border-slate-800/80 pt-6">
+      <div className="border-t border-divider pt-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400">Up Next in Queue</h3>
+            <h3 className="font-bold text-xs uppercase tracking-wider text-muted">Up Next in Queue</h3>
           </div>
-          <span className="text-xs text-slate-500 font-medium">{stageQueue.length} Questions Queued</span>
+          <span className="text-xs font-medium text-muted">{stageQueue.length} Questions Queued</span>
         </div>
 
         {stageQueue.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">No upcoming questions queued right now.</p>
+          <p className="text-xs italic text-muted">No upcoming questions queued right now.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {stageQueue.slice(0, 3).map((q) => (
-              <div key={q.id} className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 text-xs space-y-1.5">
-                <div className="flex items-center">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
-                    {q.categoryName}
-                  </span>
+            {stageQueue.slice(0, 3).map((q) => {
+              const category = categories.find(c => c.id === q.categoryId);
+              return (
+                <div key={q.id} className="rounded-xl p-3.5 border border-divider text-xs space-y-1.5 bg-surface shadow-sm">
+                  <div className="flex items-center">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
+                      {q.categoryName}
+                    </span>
+                  </div>
+                  <p className="font-medium line-clamp-2 text-secondary">
+                    "{q.text}"
+                  </p>
+                  <p className="text-[10px] font-semibold text-muted">
+                    By {q.authorName}
+                  </p>
                 </div>
-                <p className="text-slate-200 font-medium line-clamp-2">
-                  "{q.text}"
-                </p>
-                <p className="text-[10px] text-slate-400 font-semibold">
-                  By {q.authorName}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

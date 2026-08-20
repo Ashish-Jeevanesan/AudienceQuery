@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-19] - Full Light/Dark Theming for Moderator, Panel and Stage; "AQ" Branding; Stage Responsiveness
+
+- **Removed leftover vote UI**: Cleaned up upvote badges, the "Sort by Votes" option, and `ThumbsUp` icons that were still showing in `ModeratorView`, `PanelView`, and `StageView` even though voting had already been removed from the data model. Also removed a phantom `/upvote` endpoint and a "Community Upvoting" bullet from `README.md` that no longer matched the actual code.
+- **Full light/dark QA pass, logged in as admin, across all 4 views** surfaced and fixed several real bugs:
+    - `App.tsx`'s root wrapper was hardcoded `bg-slate-100 text-slate-900` instead of theme tokens, so the page canvas never actually went dark.
+    - `Footer.tsx` used undefined Tailwind classes (`bg-secondary`, `from/to-brand-primary`) that compiled to nothing, rendering as an unstyled, illegible white block in dark mode.
+    - `ModeratorView.tsx`'s metrics cards, filter bar, question cards, edit modal, and settings drawer were hardcoded light-only. Migrated to the existing CSS-variable token system (`bg-surface`, `text-primary/secondary/muted`, `border-divider`).
+    - `ModeratorView.tsx`'s category badges (e.g. "Biblical Studies") used light-mode-only colors (dark text on a near-transparent tint) that were nearly illegible on a dark card. Added theme-aware `.cat-badge-*` classes to `index.css` (light + `[data-theme="dark"]` variants) and reused them everywhere a topic color badge appears.
+    - The **Moderator Control Panel** top banner was still a permanently hardcoded dark strip regardless of the theme toggle -- converted it (and the Submissions OPEN/PAUSED pill) to the same token system so it now blends with the rest of the page in both themes.
+- **Panel and Stage now follow the single global theme toggle instead of their own local switches**:
+    - `PanelView.tsx` was always solid dark (a `highContrastMode` toggle just swapped `bg-black` for `bg-slate-950`, both dark) -- removed that toggle entirely and migrated every hardcoded color to the shared theme tokens, so it now responds to the navbar's theme switch like every other view.
+    - `StageView.tsx` had its own separate "☀️ Light Mode / 🌙 Dark Mode" button, but only the outer page wrapper actually respected it -- the QR banner, timer badge, category badges, the main "now answering" card, the empty state, and the footer ticker were all hardcoded dark regardless of the toggle. Removed the local toggle and converted every section to the global tokens.
+    - Added a shared `.live-spotlight-card` class (a theme-aware indigo-tinted gradient) in `index.css`, used by both Panel's and Stage's "now answering" highlight card so that distinctive visual survives the token conversion in both themes.
+- **Stage header responsiveness fix**: the header row used `justify-between` across three flex children (branding / QR banner / controls). Removing Stage's local theme toggle shrank the controls section, which shifted the QR/join-code banner off-center under `justify-between`'s equal-gap math -- and the banner was entirely hidden below the `lg` breakpoint (`hidden lg:flex`), losing the join code for anyone viewing Stage under 1024px wide. Restructured into two rows (branding+fullscreen on top, QR banner in its own `flex justify-center` row below) so it's always centered regardless of sibling widths and never hidden. Verified at 1920px, at the 1024px `lg` boundary, and at a true 390px mobile width (via an iframe, since this environment's browser window won't actually resize below its current size) -- centered and overflow-free at all three.
+- **Branding**: Changed the header and footer logo badge from "Q" to "AQ" (tightened tracking to fit both sizes cleanly).
+
 ## [2026-08-19] - Stage QR Code, Workflow Reference Pages, Shared Loading State, Favicon
 
 - **Stage QR Code**: The "QR code" on the Stage screen was a decorative icon glyph, not an actual scannable code. Replaced it with a real one (`qrcode.react`) pointing at the site's root URL — the app has no per-role URL routing, so a fresh visit already lands on the audience/question-submission view by default.

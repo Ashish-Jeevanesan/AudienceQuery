@@ -12,10 +12,10 @@ export const Footer: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-[10px] tracking-tighter"
                 style={{ backgroundColor: 'rgb(var(--primary))' }}
               >
-                Q
+                AQ
               </div>
               <span className="font-semibold text-primary">AudienceQuery</span>
             </div>

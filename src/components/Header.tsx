@@ -59,8 +59,8 @@ export const Header: React.FC<HeaderProps> = ({
             <div style={{ 
               backgroundColor: `rgb(var(--primary))`,
               color: `rgb(var(--primary-text))`
-            }} className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">
-              Q
+            }} className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base tracking-tighter shadow-md flex-shrink-0">
+              AQ
             </div>
             {/* Text branding */}
             <div className="min-w-0 hidden sm:block">

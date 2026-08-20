@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Question, Category, QuestionStatus } from '../types';
-import { Mic, CheckCircle2, Clock, Eye, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
+import { Mic, CheckCircle2, Clock, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
 
 /**
  * Props for the PanelView component.
@@ -29,9 +29,8 @@ export const PanelView: React.FC<PanelViewProps> = ({
   categories,
   onUpdateStatus
 }) => {
-  // State variables for category filtering, contrast mode, and timer
+  // State variables for category filtering and the timer
   const [selectedCatId, setSelectedCatId] = useState('all');
-  const [highContrastMode, setHighContrastMode] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Find the single question currently being answered live on stage
@@ -80,46 +79,32 @@ export const PanelView: React.FC<PanelViewProps> = ({
    */
   const getBadgeColor = (colorName: string) => {
     switch (colorName) {
-      case 'indigo': return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
-      case 'emerald': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-      case 'amber': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-      case 'rose': return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
-      default: return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+      case 'indigo': return 'cat-badge-indigo';
+      case 'emerald': return 'cat-badge-emerald';
+      case 'amber': return 'cat-badge-amber';
+      case 'rose': return 'cat-badge-rose';
+      default: return 'cat-badge-sky';
     }
   };
 
   return (
-    <div className={`min-h-[calc(100vh-65px)] transition-colors ${
-      highContrastMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'
-    }`}>
+    <div className="min-h-[calc(100vh-65px)] transition-colors text-primary">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
-        
+
         {/* Panel Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-divider pb-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
               <Mic className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">Panel Screen</h2>
-              <p className="text-xs text-slate-400">Moderator-approved questions for the panel.</p>
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-primary">Panel Screen</h2>
+              <p className="text-xs text-muted">Moderator-approved questions for the panel.</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setHighContrastMode(!highContrastMode)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center space-x-1.5 transition ${
-                highContrastMode
-                  ? 'bg-yellow-400 text-black border-yellow-300'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-              }`}
-            >
-              <Eye className="w-4 h-4" />
-              <span>{highContrastMode ? 'High Contrast ON' : 'Dark Mode'}</span>
-            </button>
-
-            <span className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-indigo-400 font-bold">
+            <span className="px-3 py-1.5 rounded-xl border text-xs font-bold cat-badge-indigo">
               {pushedQuestions.length} Questions in Queue
             </span>
           </div>
@@ -133,8 +118,8 @@ export const PanelView: React.FC<PanelViewProps> = ({
           </div>
 
           {currentAnswering ? (
-            <div className="bg-gradient-to-br from-indigo-950/90 via-slate-900 to-slate-950 rounded-3xl p-6 sm:p-8 border-2 border-indigo-500/60 shadow-2xl shadow-indigo-500/10 space-y-6 relative overflow-hidden">
-              
+            <div className="live-spotlight-card rounded-3xl p-6 sm:p-8 border-2 shadow-2xl shadow-indigo-500/10 space-y-6 relative overflow-hidden">
+
               <div className="flex flex-wrap items-center justify-between gap-3 relative z-10">
                 <div className="flex items-center space-x-2">
                   <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${getBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
@@ -142,22 +127,22 @@ export const PanelView: React.FC<PanelViewProps> = ({
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-indigo-500/40 text-xs font-mono text-indigo-300 font-bold">
-                  <Clock className="w-4 h-4 text-indigo-400" />
+                <div className="flex items-center space-x-2 bg-surface-secondary px-3 py-1.5 rounded-xl border border-divider-strong text-xs font-mono font-bold" style={{ color: 'rgb(var(--primary))' }}>
+                  <Clock className="w-4 h-4" style={{ color: 'rgb(var(--primary))' }} />
                   <span>Elapsed: {formatTimer(elapsedSeconds)}</span>
                 </div>
               </div>
 
               {/* Massive Question Typography for Stage Scanning */}
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white leading-tight tracking-tight relative z-10">
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-primary leading-tight tracking-tight relative z-10">
                 "{currentAnswering.text}"
               </p>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-800 relative z-10">
-                <div className="text-xs text-slate-400">
-                  From: <strong className="text-slate-200 text-sm">{currentAnswering.authorName}</strong>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-divider relative z-10">
+                <div className="text-xs text-muted">
+                  From: <strong className="text-primary text-sm">{currentAnswering.authorName}</strong>
                   {currentAnswering.moderatorNotes && (
-                    <p className="text-indigo-300/80 mt-1 italic">
+                    <p className="mt-1 italic" style={{ color: 'rgb(var(--primary))', opacity: 0.8 }}>
                       Moderator Note: {currentAnswering.moderatorNotes}
                     </p>
                   )}
@@ -174,10 +159,10 @@ export const PanelView: React.FC<PanelViewProps> = ({
 
             </div>
           ) : (
-            <div className="bg-slate-900/60 rounded-3xl p-8 border border-slate-800 text-center space-y-3">
-              <Sparkles className="w-8 h-8 text-slate-500 mx-auto" />
-              <h3 className="text-slate-300 font-bold text-lg">No active question.</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+            <div className="bg-surface-secondary rounded-3xl p-8 border border-divider text-center space-y-3">
+              <Sparkles className="w-8 h-8 text-muted mx-auto" />
+              <h3 className="text-secondary font-bold text-lg">No active question.</h3>
+              <p className="text-xs text-muted max-w-md mx-auto">
                 Select a question from the queue below and click <strong>"Answer Live"</strong> to present it on stage.
               </p>
             </div>
@@ -187,10 +172,10 @@ export const PanelView: React.FC<PanelViewProps> = ({
         {/* Pushed Questions Queue */}
         <div className="space-y-4">
           
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-divider pb-3">
             <div className="flex items-center space-x-2">
-              <h3 className="font-bold text-white text-lg">Questions Queue</h3>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <h3 className="font-bold text-primary text-lg">Questions Queue</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border cat-badge-indigo">
                 {filteredQueue.length} Ready
               </span>
             </div>
@@ -199,7 +184,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
             <select
               value={selectedCatId}
               onChange={(e) => setSelectedCatId(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 font-medium outline-none"
+              className="px-3 py-1.5 rounded-xl bg-surface border border-divider text-xs text-secondary font-medium outline-none"
             >
               <option value="all">All Topics</option>
               {categories.map(c => (
@@ -209,10 +194,10 @@ export const PanelView: React.FC<PanelViewProps> = ({
           </div>
 
           {filteredQueue.length === 0 ? (
-            <div className="bg-slate-900/40 rounded-2xl p-8 text-center border border-slate-800/80">
-              <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-slate-400 text-xs font-medium">No questions in the queue.</p>
-              <p className="text-slate-500 text-[11px] mt-1">Approved questions will appear here.</p>
+            <div className="bg-surface-secondary rounded-2xl p-8 text-center border border-divider">
+              <MessageSquare className="w-8 h-8 text-muted mx-auto mb-2" />
+              <p className="text-muted text-xs font-medium">No questions in the queue.</p>
+              <p className="text-muted text-[11px] mt-1">Approved questions will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -222,10 +207,10 @@ export const PanelView: React.FC<PanelViewProps> = ({
                 return (
                   <div
                     key={q.id}
-                    className="bg-slate-900 rounded-2xl p-5 border border-slate-800 hover:border-slate-700 transition-all shadow-md space-y-4"
+                    className="bg-surface rounded-2xl p-5 border border-divider hover:border-divider-strong transition-all shadow-md space-y-4"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      
+
                       <div className="space-y-2 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${getBadgeColor(category?.color || 'sky')}`}>
@@ -233,20 +218,20 @@ export const PanelView: React.FC<PanelViewProps> = ({
                           </span>
 
                           {q.isPriority && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold border cat-badge-amber">
                               ★ Priority
                             </span>
                           )}
                         </div>
 
-                        <p className="text-white font-bold text-lg sm:text-xl leading-snug">
+                        <p className="text-primary font-bold text-lg sm:text-xl leading-snug">
                           {q.text}
                         </p>
 
-                        <div className="text-xs text-slate-400">
-                          From: <strong className="text-slate-200">{q.authorName}</strong>
+                        <div className="text-xs text-muted">
+                          From: <strong className="text-primary">{q.authorName}</strong>
                           {q.moderatorNotes && (
-                            <span className="ml-2 text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800 text-[11px]">
+                            <span className="ml-2 px-2 py-0.5 rounded border text-[11px] cat-badge-indigo">
                               Moderator Note: {q.moderatorNotes}
                             </span>
                           )}
@@ -274,16 +259,16 @@ export const PanelView: React.FC<PanelViewProps> = ({
 
         {/* Answered Questions History */}
         {completedQuestions.length > 0 && (
-          <div className="space-y-3 pt-4 border-t border-slate-800">
-            <h3 className="font-bold text-slate-400 text-xs uppercase tracking-wider">Answered Questions ({completedQuestions.length})</h3>
+          <div className="space-y-3 pt-4 border-t border-divider">
+            <h3 className="font-bold text-muted text-xs uppercase tracking-wider">Answered Questions ({completedQuestions.length})</h3>
             <div className="space-y-2 opacity-75">
               {completedQuestions.map((q) => (
-                <div key={q.id} className="bg-slate-900/50 rounded-xl p-3 border border-slate-800 text-xs flex items-center justify-between text-slate-300">
+                <div key={q.id} className="bg-surface-secondary rounded-xl p-3 border border-divider text-xs flex items-center justify-between text-secondary">
                   <div className="flex items-center space-x-2 truncate">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="truncate">{q.text}</span>
                   </div>
-                  <span className="text-[11px] text-slate-500 shrink-0 ml-2">{q.categoryName}</span>
+                  <span className="text-[11px] text-muted shrink-0 ml-2">{q.categoryName}</span>
                 </div>
               ))}
             </div>
