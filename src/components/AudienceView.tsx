@@ -94,6 +94,15 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
           {/* Card Body */}
           <div className="px-6 sm:px-8 py-8 space-y-6" style={{ backgroundColor: `rgb(var(--surface-elevated))` }}>
+            {!conferenceEvent.id ? (
+              <div className="text-center py-6 space-y-2">
+                <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>No event is currently live.</p>
+                <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
+                  Question submissions will reopen once a moderator starts the next event.
+                </p>
+              </div>
+            ) : (
+              <>
             {/* Success Message */}
             {submittedSuccess && (
               <div className="p-4 rounded-xl flex items-center space-x-3 border-l-4" style={{
@@ -216,6 +225,8 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                 <span>Submit Question</span>
               </button>
             </form>
+              </>
+            )}
           </div>
         </div>
 

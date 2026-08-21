@@ -63,7 +63,7 @@ a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6
 
 1. In Supabase dashboard, click **SQL Editor** (left sidebar)
 2. Click **New Query**
-3. Open `schema.sql` file in your text editor
+3. Open `database/schema.sql` file in your text editor
 4. Copy **ALL** the contents
 5. Paste into Supabase SQL editor
 6. Click **Run** (▶️ button, top right)
@@ -136,7 +136,7 @@ Solution: Run: npm install
 
 **Problem: Questions don't appear in database**
 ```
-Solution: Check that schema.sql ran successfully
+Solution: Check that database/schema.sql ran successfully
 In Supabase > Tables, you should see "questions" table
 ```
 
@@ -172,7 +172,7 @@ Ctrl+C
 | File | Purpose |
 |------|---------|
 | `.env` | Your credentials (NEVER commit!) |
-| `schema.sql` | Database structure |
+| `database/schema.sql` | Database structure |
 | `server.ts` | Backend API |
 | `src/useRealTimeQnA.ts` | Frontend data management |
 | `src/App.tsx` | Main app component |

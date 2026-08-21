@@ -7,8 +7,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Question, Category, ConferenceEvent, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle } from 'lucide-react';
+import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio } from 'lucide-react';
+
+const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
 
 /**
  * Props for the ModeratorView component.
@@ -17,11 +19,19 @@ interface ModeratorViewProps {
   questions: Question[];
   categories: Category[];
   conferenceEvent: ConferenceEvent;
+  events: EventRecord[];
+  users: AppUser[];
+  isAdmin: boolean;
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
   onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
   onCreateCategory: (data: { name: string; color: string; description?: string }) => void;
-  onUpdateEvent: (data: Partial<ConferenceEvent>) => void;
+  onFetchEvents: () => void;
+  onCreateEvent: (data: { title: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
+  onUpdateEvent: (id: string, data: { title?: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
+  onActivateEvent: (id: string) => Promise<void>;
+  onFetchUsers: () => void;
+  onUpdateUser: (id: string, data: { role?: string; username?: string }) => Promise<void>;
 }
 
 /**
@@ -33,16 +43,27 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   questions,
   categories,
   conferenceEvent,
+  events,
+  users,
+  isAdmin,
   onUpdateStatus,
   onEditQuestion,
   onDeleteQuestion,
   onCreateCategory,
-  onUpdateEvent
+  onFetchEvents,
+  onCreateEvent,
+  onUpdateEvent,
+  onActivateEvent,
+  onFetchUsers,
+  onUpdateUser
 }) => {
   // State variables for filter tabs, search, and sorting
   const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  // 'all' = every event's questions, 'live' = only the currently live
+  // event, or a specific event id to review one past event in isolation.
+  const [eventFilter, setEventFilter] = useState<'all' | 'live' | string>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'priority'>('recent');
 
   // Edit Modal State for editing a specific question
@@ -53,24 +74,42 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [editIsPriority, setEditIsPriority] = useState(false);
   const [editError, setEditError] = useState('');
 
-  // Settings Panel State (toggles visibility of the configuration card)
-  const [showSettings, setShowSettings] = useState(false);
+  // Categories drawer state (toggles visibility of the "Manage Categories" card)
+  const [showCategories, setShowCategories] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('indigo');
 
-  // Event title/subtitle are edited locally and only saved on blur --
-  // saving on every keystroke would fire a request (and the shared
-  // loading overlay) per character typed.
-  const [titleDraft, setTitleDraft] = useState(conferenceEvent.title);
-  const [subtitleDraft, setSubtitleDraft] = useState(conferenceEvent.subtitle);
+  // Events drawer state
+  const [showEvents, setShowEvents] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventSubtitle, setNewEventSubtitle] = useState('');
+  const [newEventAllowAnonymous, setNewEventAllowAnonymous] = useState(true);
+  const [creatingEvent, setCreatingEvent] = useState(false);
+  const [createEventError, setCreateEventError] = useState('');
+  const [activatingEventId, setActivatingEventId] = useState<string | null>(null);
+  const [activateEventError, setActivateEventError] = useState('');
 
-  useEffect(() => {
-    setTitleDraft(conferenceEvent.title);
-  }, [conferenceEvent.title]);
+  // Per-event inline edit (title/subtitle/allowAnonymous/isAcceptingQuestions)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventEditDraft, setEventEditDraft] = useState<{ title: string; subtitle: string; allowAnonymous: boolean; isAcceptingQuestions: boolean }>({ title: '', subtitle: '', allowAnonymous: true, isAcceptingQuestions: true });
+  const [eventEditError, setEventEditError] = useState('');
+  const [savingEventEdit, setSavingEventEdit] = useState(false);
 
+  // Users drawer state (admin only)
+  const [showUsers, setShowUsers] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userEditDraft, setUserEditDraft] = useState<{ role: UserRole; username: string }>({ role: 'panelist', username: '' });
+  const [userEditError, setUserEditError] = useState('');
+  const [savingUserEdit, setSavingUserEdit] = useState(false);
+
+  // The events/users lists aren't part of the public state snapshot, so this
+  // already-admin/moderator-gated view fetches them itself. Users list is
+  // admin-only server-side, so plain moderators skip that call entirely.
   useEffect(() => {
-    setSubtitleDraft(conferenceEvent.subtitle);
-  }, [conferenceEvent.subtitle]);
+    onFetchEvents();
+    if (isAdmin) onFetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   // Metrics for the dashboard counters
   const pendingCount = questions.filter(q => q.status === 'pending').length;
@@ -91,6 +130,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
   if (categoryFilter !== 'all') {
     filtered = filtered.filter(q => q.categoryId === categoryFilter);
+  }
+
+  if (eventFilter === 'live') {
+    filtered = filtered.filter(q => q.eventId === conferenceEvent.id);
+  } else if (eventFilter !== 'all') {
+    filtered = filtered.filter(q => q.eventId === eventFilter);
   }
 
   if (searchQuery.trim()) {
@@ -167,6 +212,93 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     }
   };
 
+  /**
+   * Handles creating a new event. Stays on the form (and surfaces the
+   * error) if the create fails, instead of clearing it as if it worked.
+   */
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEventTitle.trim()) return;
+    setCreatingEvent(true);
+    setCreateEventError('');
+    try {
+      await onCreateEvent({
+        title: newEventTitle.trim(),
+        subtitle: newEventSubtitle.trim(),
+        allowAnonymous: newEventAllowAnonymous,
+        isAcceptingQuestions: true
+      });
+      setNewEventTitle('');
+      setNewEventSubtitle('');
+      setNewEventAllowAnonymous(true);
+    } catch (err: any) {
+      setCreateEventError(err?.message || 'Unable to create event. Please try again.');
+    } finally {
+      setCreatingEvent(false);
+    }
+  };
+
+  /**
+   * Makes the given event the single live event. Surfaces a 409 (another
+   * moderator just changed it) or any other failure inline.
+   */
+  const handleActivateEvent = async (id: string) => {
+    setActivatingEventId(id);
+    setActivateEventError('');
+    try {
+      await onActivateEvent(id);
+    } catch (err: any) {
+      setActivateEventError(err?.message || 'Unable to activate event. Please try again.');
+    } finally {
+      setActivatingEventId(null);
+    }
+  };
+
+  const openEventEdit = (evt: EventRecord) => {
+    setEditingEventId(evt.id);
+    setEventEditDraft({
+      title: evt.title,
+      subtitle: evt.subtitle,
+      allowAnonymous: evt.allowAnonymous,
+      isAcceptingQuestions: evt.isAcceptingQuestions
+    });
+    setEventEditError('');
+  };
+
+  const saveEventEdit = async () => {
+    if (!editingEventId) return;
+    setSavingEventEdit(true);
+    setEventEditError('');
+    try {
+      await onUpdateEvent(editingEventId, eventEditDraft);
+      setEditingEventId(null);
+    } catch (err: any) {
+      setEventEditError(err?.message || 'Unable to save event. Please try again.');
+    } finally {
+      setSavingEventEdit(false);
+    }
+  };
+
+  const openUserEdit = (u: AppUser) => {
+    setEditingUserId(u.id);
+    setUserEditDraft({ role: u.role, username: u.username || '' });
+    setUserEditError('');
+  };
+
+  const saveUserEdit = async () => {
+    if (!editingUserId) return;
+    setSavingUserEdit(true);
+    setUserEditError('');
+    try {
+      await onUpdateUser(editingUserId, userEditDraft);
+      setEditingUserId(null);
+    } catch (err: any) {
+      setUserEditError(err?.message || 'Unable to save user. Please try again.');
+    } finally {
+      setSavingUserEdit(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       
@@ -182,10 +314,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => onUpdateEvent({ isAcceptingQuestions: !conferenceEvent.isAcceptingQuestions })}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center space-x-2 transition ${
+            onClick={() => conferenceEvent.id && onUpdateEvent(conferenceEvent.id, { isAcceptingQuestions: !conferenceEvent.isAcceptingQuestions })}
+            disabled={!conferenceEvent.id}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center space-x-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
               conferenceEvent.isAcceptingQuestions ? 'cat-badge-emerald' : 'cat-badge-amber'
             }`}
           >
@@ -194,12 +327,30 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </button>
 
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => setShowEvents(!showEvents)}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>Manage Events</span>
+          </button>
+
+          <button
+            onClick={() => setShowCategories(!showCategories)}
             className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
           >
             <Settings className="w-4 h-4" />
-            <span>Conference Settings</span>
+            <span>Manage Categories</span>
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setShowUsers(!showUsers)}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+            >
+              <Users2 className="w-4 h-4" />
+              <span>Manage Users</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -246,87 +397,281 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         </div>
       </div>
 
-      {/* Settings Modal Drawer */}
-      {showSettings && (
+      {/* Manage Events Drawer */}
+      {showEvents && (
+        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
+              <CalendarDays className="w-5 h-5 text-indigo-600" />
+              <span>Manage Events</span>
+            </h3>
+            <button onClick={() => setShowEvents(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+          </div>
+
+          {/* Create Event */}
+          <form onSubmit={handleCreateEvent} className="space-y-2 border-b border-divider pb-5">
+            <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Create New Event</h4>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder="Event Title"
+                value={newEventTitle}
+                onChange={(e) => setNewEventTitle(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                placeholder="Subtitle (optional)"
+                value={newEventSubtitle}
+                onChange={(e) => setNewEventSubtitle(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <label className="flex items-center gap-1.5 px-2 whitespace-nowrap text-xs text-secondary">
+                <input
+                  type="checkbox"
+                  checked={newEventAllowAnonymous}
+                  onChange={(e) => setNewEventAllowAnonymous(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span>Allow anonymous</span>
+              </label>
+              <button
+                type="submit"
+                disabled={creatingEvent}
+                className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition disabled:opacity-60"
+              >
+                {creatingEvent ? 'Creating…' : <Plus className="w-4 h-4" />}
+              </button>
+            </div>
+            {createEventError && (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5" /> {createEventError}
+              </p>
+            )}
+          </form>
+
+          {/* Event List */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-muted uppercase tracking-wider">All Events</h4>
+            {activateEventError && (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5" /> {activateEventError}
+              </p>
+            )}
+            {events.length === 0 ? (
+              <p className="text-xs text-muted italic">No events yet. Create one above.</p>
+            ) : (
+              events.map(evt => (
+                <div key={evt.id} className="rounded-xl border border-divider p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {evt.isLive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold cat-badge-emerald">
+                          <Radio className="w-3 h-3" /> LIVE
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-primary truncate">{evt.title}</span>
+                      <span className="text-xs text-muted truncate">{evt.subtitle}</span>
+                      <span className="text-[11px] font-mono text-muted">Code: {evt.joinCode}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!evt.isLive && (
+                        <button
+                          onClick={() => handleActivateEvent(evt.id)}
+                          disabled={activatingEventId === evt.id}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700 transition disabled:opacity-60"
+                        >
+                          {activatingEventId === evt.id ? 'Activating…' : 'Set Live'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openEventEdit(evt)}
+                        className="p-1.5 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+                        title="Edit event"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingEventId === evt.id && (
+                    <div className="space-y-2 pt-2 border-t border-divider">
+                      <input
+                        type="text"
+                        value={eventEditDraft.title}
+                        onChange={(e) => setEventEditDraft(d => ({ ...d, title: e.target.value }))}
+                        placeholder="Title"
+                        className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                      />
+                      <input
+                        type="text"
+                        value={eventEditDraft.subtitle}
+                        onChange={(e) => setEventEditDraft(d => ({ ...d, subtitle: e.target.value }))}
+                        placeholder="Subtitle"
+                        className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                      />
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-1.5 text-xs text-secondary">
+                          <input
+                            type="checkbox"
+                            checked={eventEditDraft.allowAnonymous}
+                            onChange={(e) => setEventEditDraft(d => ({ ...d, allowAnonymous: e.target.checked }))}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                          />
+                          <span>Allow anonymous</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 text-xs text-secondary">
+                          <input
+                            type="checkbox"
+                            checked={eventEditDraft.isAcceptingQuestions}
+                            onChange={(e) => setEventEditDraft(d => ({ ...d, isAcceptingQuestions: e.target.checked }))}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                          />
+                          <span>Accepting questions</span>
+                        </label>
+                      </div>
+                      {eventEditError && (
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5" /> {eventEditError}
+                        </p>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setEditingEventId(null)} className="px-3 py-1.5 rounded-lg bg-surface-secondary text-secondary text-xs font-semibold hover:bg-surface-hover">Cancel</button>
+                        <button onClick={saveEventEdit} disabled={savingEventEdit} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60">
+                          {savingEventEdit ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Manage Categories Drawer */}
+      {showCategories && (
         <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn">
           <div className="flex items-center justify-between border-b border-divider pb-3">
             <h3 className="font-bold text-primary text-base flex items-center space-x-2">
               <Settings className="w-5 h-5 text-indigo-600" />
-              <span>Conference Settings & Topics</span>
+              <span>Manage Categories</span>
             </h3>
-            <button onClick={() => setShowSettings(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+            <button onClick={() => setShowCategories(false)} className="text-muted hover:text-secondary font-bold">✕</button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Event Branding */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Conference Info</h4>
-              <div>
-                <label className="block text-xs font-semibold text-secondary mb-1">Event Title</label>
+          {/* Add Custom Category */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Add New Topic</h4>
+            <form onSubmit={handleAddCategory} className="space-y-3">
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onBlur={() => {
-                    if (titleDraft !== conferenceEvent.title) onUpdateEvent({ title: titleDraft });
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                  placeholder="Topic Name (e.g., Parenting)"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                 />
+                <select
+                  value={newCatColor}
+                  onChange={(e) => setNewCatColor(e.target.value)}
+                  className="px-2 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
+                >
+                  <option value="indigo">Indigo</option>
+                  <option value="emerald">Emerald</option>
+                  <option value="amber">Amber</option>
+                  <option value="rose">Rose</option>
+                  <option value="sky">Sky</option>
+                </select>
+                <button
+                  type="submit"
+                  className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-secondary mb-1">Subtitle / Session Name</label>
-                <input
-                  type="text"
-                  value={subtitleDraft}
-                  onChange={(e) => setSubtitleDraft(e.target.value)}
-                  onBlur={() => {
-                    if (subtitleDraft !== conferenceEvent.subtitle) onUpdateEvent({ subtitle: subtitleDraft });
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
-                />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {categories.map(c => (
+                  <span key={c.id} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getBadgeColor(c.color)}`}>
+                    {c.name}
+                  </span>
+                ))}
               </div>
-            </div>
-
-            {/* Add Custom Category */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Add New Topic</h4>
-              <form onSubmit={handleAddCategory} className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Topic Name (e.g., Parenting)"
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
-                  />
-                  <select
-                    value={newCatColor}
-                    onChange={(e) => setNewCatColor(e.target.value)}
-                    className="px-2 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
-                  >
-                    <option value="indigo">Indigo</option>
-                    <option value="emerald">Emerald</option>
-                    <option value="amber">Amber</option>
-                    <option value="rose">Rose</option>
-                    <option value="sky">Sky</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {categories.map(c => (
-                    <span key={c.id} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getBadgeColor(c.color)}`}>
-                      {c.name}
-                    </span>
-                  ))}
-                </div>
-              </form>
-            </div>
+            </form>
           </div>
+        </div>
+      )}
+
+      {/* Manage Users Drawer (admin only) */}
+      {isAdmin && showUsers && (
+        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
+              <Users2 className="w-5 h-5 text-indigo-600" />
+              <span>Manage Users</span>
+            </h3>
+            <button onClick={() => setShowUsers(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+          </div>
+
+          {users.length === 0 ? (
+            <p className="text-xs text-muted italic">No users found. New accounts created in Supabase Auth appear here automatically.</p>
+          ) : (
+            <div className="space-y-2">
+              {users.map(u => (
+                <div key={u.id} className="rounded-xl border border-divider p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-primary truncate">{u.username || u.email}</p>
+                      <p className="text-xs text-muted truncate">{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold cat-badge-indigo capitalize">{u.role}</span>
+                      <button
+                        onClick={() => openUserEdit(u)}
+                        className="p-1.5 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+                        title="Edit user"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingUserId === u.id && (
+                    <div className="space-y-2 pt-2 border-t border-divider">
+                      <input
+                        type="text"
+                        value={userEditDraft.username}
+                        onChange={(e) => setUserEditDraft(d => ({ ...d, username: e.target.value }))}
+                        placeholder="Username"
+                        className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                      />
+                      <select
+                        value={userEditDraft.role}
+                        onChange={(e) => setUserEditDraft(d => ({ ...d, role: e.target.value as UserRole }))}
+                        className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
+                      >
+                        {ALL_ROLES.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                      {userEditError && (
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5" /> {userEditError}
+                        </p>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setEditingUserId(null)} className="px-3 py-1.5 rounded-lg bg-surface-secondary text-secondary text-xs font-semibold hover:bg-surface-hover">Cancel</button>
+                        <button onClick={saveUserEdit} disabled={savingUserEdit} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60">
+                          {savingUserEdit ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -422,6 +767,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <select
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-divider text-xs text-secondary bg-surface outline-none"
+            >
+              <option value="all">All Events</option>
+              <option value="live">Live Event Only</option>
+              {events.filter(e => !e.isLive).map(e => (
+                <option key={e.id} value={e.id}>{e.title}</option>
+              ))}
+            </select>
+
+            <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="px-3 py-1.5 rounded-xl border border-divider text-xs text-secondary bg-surface outline-none"
@@ -487,6 +844,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         </span>
                       )}
 
+                      {q.eventId !== conferenceEvent.id && (
+                        <span className="text-[11px] text-muted bg-surface-secondary px-2 py-0.5 rounded border border-divider">
+                          {events.find(e => e.id === q.eventId)?.title || 'Past Event'}
+                        </span>
+                      )}
+
                       <span className="text-xs text-muted">
                         {new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -510,16 +873,28 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   {/* Right Actions Bar */}
                   <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-divider">
                     
-                    {/* Primary Action: PUSH TO PANEL */}
+                    {/* Primary Action: PUSH TO PANEL -- only for questions
+                        belonging to the currently live event; the server
+                        enforces this too, this is just the UX reflection. */}
                     {q.status !== 'pushed' && q.status !== 'answering' && (
-                      <button
-                        onClick={() => onUpdateStatus(q.id, 'pushed')}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition"
-                        title="Push to Panel Member interface"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>Send to Panel</span>
-                      </button>
+                      q.eventId === conferenceEvent.id ? (
+                        <button
+                          onClick={() => onUpdateStatus(q.id, 'pushed')}
+                          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition"
+                          title="Push to Panel Member interface"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send to Panel</span>
+                        </button>
+                      ) : (
+                        <span
+                          className="px-3 py-1.5 rounded-xl bg-surface-secondary text-disabled font-bold text-xs flex items-center space-x-1.5 border border-divider cursor-not-allowed"
+                          title="Only questions from the live event can be pushed to the panel"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Not Live Event</span>
+                        </span>
+                      )
                     )}
 
                     {q.status === 'pushed' && (

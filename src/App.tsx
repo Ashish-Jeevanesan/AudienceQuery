@@ -15,48 +15,53 @@ import { ModeratorView } from './components/ModeratorView';
 import { PanelView } from './components/PanelView';
 import { StageView } from './components/StageView';
 import { GlobalLoader } from './components/GlobalLoader';
-import type { ViewRole } from './types';
+import type { AppUser } from './types';
 import { supabase } from './supabaseClient';
 
 /**
  * The main application component.
  * It orchestrates the entire UI, fetching data and passing it down to the
- * active view component. Uses Supabase Auth for role-based access control.
+ * active view component. Uses Supabase Auth for sign-in, but the `users`
+ * table (via GET /api/me) is the source of truth for the account's role.
  * @returns {React.ReactElement} The rendered application.
  */
 export default function App() {
-  // State to track moderator auth status from Supabase
-  const [isModeratorAuthenticated, setIsModeratorAuthenticated] = useState(false);
+  // The signed-in user's application identity/role, resolved via /api/me.
+  // null means either logged out, or logged in with no application role.
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Effect to check moderator role on mount and when auth changes
-  useEffect(() => {
-    const checkModeratorRole = async () => {
-      try {
-        // Get the current user from Supabase Auth
-        const { data: { user} } = await supabase.auth.getUser();
+  const resolveCurrentUser = async (): Promise<AppUser | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
 
-        if (user) {
-          const role = user.app_metadata?.role;
-          setIsModeratorAuthenticated(role === 'admin' || role === 'moderator');
-        } else {
-          setIsModeratorAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Error checking moderator role:', error);
-        setIsModeratorAuthenticated(false);
-      }
+    try {
+      const res = await fetch('/api/me', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (error) {
+      console.error('Error resolving current user:', error);
+      return null;
+    }
+  };
+
+  // Effect to resolve the current user's role on mount and when auth changes
+  useEffect(() => {
+    const checkCurrentUser = async () => {
+      setCurrentUser(await resolveCurrentUser());
     };
 
-    checkModeratorRole();
+    checkCurrentUser();
 
     // Listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      checkModeratorRole();
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      checkCurrentUser();
     });
 
     return () => {
@@ -69,6 +74,8 @@ export default function App() {
     questions,
     categories,
     conferenceEvent,
+    events,
+    users,
     isConnected,
     isBusy,
     activeRole,
@@ -80,7 +87,12 @@ export default function App() {
     editQuestion,
     deleteQuestion,
     createCategory,
-    updateEvent,
+    fetchEvents,
+    createEvent,
+    updateEventById,
+    activateEvent,
+    fetchUsers,
+    updateUser,
     resetDemoData
   } = useRealTimeQnA();
 
@@ -89,25 +101,30 @@ export default function App() {
   const pushedCount = questions.filter(q => q.status === 'pushed').length;
   const answeringCount = questions.filter(q => q.status === 'answering').length;
 
-  // Determine if the current user has admin access (moderator role)
-  // isAdmin is true if: user is authenticated AND has moderator role in Supabase
-  const isAdmin = isModeratorAuthenticated;
+  // Access to each view is a per-role allow-list, not a single admin flag --
+  // panelist/stage accounts are restricted logins locked to their own view.
+  const canViewModerator = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
+  const canViewPanel = canViewModerator || currentUser?.role === 'panelist';
+  const canViewStage = canViewModerator || currentUser?.role === 'stage';
 
-  // Restrict role changes: only allow switching to audience role freely.
-  // Other roles (moderator, panel, stage) require admin privileges.
-  const canSwitchRole = (targetRole: ViewRole) => {
-    // Audience role is always accessible
-    if (targetRole === 'audience') return true;
-    // Other roles require admin access
-    return isAdmin;
-  };
+  // Panel/Stage only ever show questions belonging to the currently live
+  // event; the Moderator view still gets the full unfiltered list.
+  const liveQuestions = conferenceEvent.id
+    ? questions.filter(q => q.eventId === conferenceEvent.id)
+    : [];
 
-  const handleModeratorLogin = () => {
+  const handleLogin = () => {
     setLoginError('');
     setIsLoginOpen(true);
   };
 
-  const submitModeratorLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setActiveRole('audience');
+  };
+
+  const submitLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoggingIn(true);
     setLoginError('');
@@ -119,16 +136,19 @@ export default function App() {
       return;
     }
 
-    const role = data.user.app_metadata?.role;
-    if (role !== 'admin' && role !== 'moderator') {
+    const user = await resolveCurrentUser();
+    if (!user) {
       await supabase.auth.signOut();
-      setLoginError('This account does not have administrator access.');
+      setLoginError('This account does not have application access.');
       setIsLoggingIn(false);
       return;
     }
 
-    setIsModeratorAuthenticated(true);
-    setActiveRole('moderator');
+    setCurrentUser(user);
+    if (user.role === 'admin' || user.role === 'moderator') setActiveRole('moderator');
+    else if (user.role === 'panelist') setActiveRole('panel');
+    else if (user.role === 'stage') setActiveRole('stage');
+
     setPassword('');
     setIsLoginOpen(false);
     setIsLoggingIn(false);
@@ -138,7 +158,7 @@ export default function App() {
     <div className="min-h-screen text-primary font-sans antialiased selection:bg-indigo-500 selection:text-white">
       <GlobalLoader isVisible={isBusy} />
 
-      {/* Top Navbar Header - Shows login prompt if not moderator */}
+      {/* Top Navbar Header - Shows a Login button if signed out */}
       <Header
         activeRole={activeRole}
         setActiveRole={setActiveRole}
@@ -149,9 +169,9 @@ export default function App() {
         pendingCount={pendingCount}
         pushedCount={pushedCount}
         answeringCount={answeringCount}
-        isAdmin={isAdmin}
-        onModeratorLogin={handleModeratorLogin}
-        isModeratorAuthenticated={isModeratorAuthenticated}
+        currentUser={currentUser}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
       />
 
       {/* Main View Container - Renders the view based on the active role */}
@@ -167,33 +187,42 @@ export default function App() {
           />
         )}
 
-        {/* Moderator view - requires moderator role in Supabase */}
-        {isAdmin && activeRole === 'moderator' && (
+        {/* Moderator view - admin or moderator role required */}
+        {canViewModerator && activeRole === 'moderator' && (
           <ModeratorView
             questions={questions}
             categories={categories}
             conferenceEvent={conferenceEvent}
+            events={events}
+            users={users}
+            isAdmin={currentUser?.role === 'admin'}
             onUpdateStatus={updateStatus}
             onEditQuestion={editQuestion}
             onDeleteQuestion={deleteQuestion}
             onCreateCategory={createCategory}
-            onUpdateEvent={updateEvent}
+            onFetchEvents={fetchEvents}
+            onCreateEvent={createEvent}
+            onUpdateEvent={updateEventById}
+            onActivateEvent={activateEvent}
+            onFetchUsers={fetchUsers}
+            onUpdateUser={updateUser}
           />
         )}
 
-        {/* Panel view - admin access required */}
-        {isAdmin && activeRole === 'panel' && (
+        {/* Panel view - admin, moderator, or panelist role required */}
+        {canViewPanel && activeRole === 'panel' && (
           <PanelView
-            questions={questions}
+            questions={liveQuestions}
             categories={categories}
+            conferenceEvent={conferenceEvent}
             onUpdateStatus={updateStatus}
           />
         )}
 
-        {/* Stage view - admin access required */}
-        {isAdmin && activeRole === 'stage' && (
+        {/* Stage view - admin, moderator, or stage role required */}
+        {canViewStage && activeRole === 'stage' && (
           <StageView
-            questions={questions}
+            questions={liveQuestions}
             categories={categories}
             conferenceEvent={conferenceEvent}
           />
@@ -203,9 +232,9 @@ export default function App() {
 
       {isLoginOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <form onSubmit={submitModeratorLogin} className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-primary">Administrator access</h2>
-            <p className="mt-1 text-sm text-secondary">Sign in with the administrator account created in Supabase.</p>
+          <form onSubmit={submitLogin} className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-primary">Sign in</h2>
+            <p className="mt-1 text-sm text-secondary">Sign in with the account created for you in Supabase.</p>
             <label className="mt-5 block text-sm font-medium text-secondary">Email
               <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base mt-1 w-full" autoComplete="email" />
             </label>

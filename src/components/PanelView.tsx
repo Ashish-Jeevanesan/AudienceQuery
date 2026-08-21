@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Question, Category, QuestionStatus } from '../types';
+import { Question, Category, ConferenceEvent, QuestionStatus } from '../types';
 import { Mic, CheckCircle2, Clock, Sparkles, ChevronRight, MessageSquare } from 'lucide-react';
 
 /**
@@ -16,6 +16,7 @@ import { Mic, CheckCircle2, Clock, Sparkles, ChevronRight, MessageSquare } from 
 interface PanelViewProps {
   questions: Question[];
   categories: Category[];
+  conferenceEvent: ConferenceEvent;
   onUpdateStatus: (questionId: string, status: QuestionStatus) => void;
 }
 
@@ -27,6 +28,7 @@ interface PanelViewProps {
 export const PanelView: React.FC<PanelViewProps> = ({
   questions,
   categories,
+  conferenceEvent,
   onUpdateStatus
 }) => {
   // State variables for category filtering and the timer
@@ -109,6 +111,14 @@ export const PanelView: React.FC<PanelViewProps> = ({
             </span>
           </div>
         </div>
+
+        {!conferenceEvent.id && (
+          <div className="bg-surface-secondary rounded-2xl p-6 border border-divider text-center space-y-1">
+            <Sparkles className="w-6 h-6 text-muted mx-auto" />
+            <h3 className="text-secondary font-bold">No event is currently live.</h3>
+            <p className="text-xs text-muted">The queue will populate once a moderator starts an event.</p>
+          </div>
+        )}
 
         {/* HERO SPOTLIGHT: CURRENTLY ANSWERING LIVE */}
         <div className="space-y-3">

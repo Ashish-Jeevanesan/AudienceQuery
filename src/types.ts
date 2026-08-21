@@ -35,6 +35,8 @@ export interface Question {
   categoryName: string;
   /** The current status in the question lifecycle. */
   status: QuestionStatus;
+  /** The ID of the event this question belongs to. Only questions belonging to the live event can be pushed to the panel. */
+  eventId: string;
   /** A flag set by moderators to pin a question to the top. */
   isPriority: boolean;
   /** Internal notes visible only to moderators. */
@@ -76,9 +78,13 @@ export interface Category {
 }
 
 /**
- * Interface representing the overall conference event details.
+ * Interface representing the overall conference event details, as resolved
+ * for the currently *live* event. Kept as the shape every view already
+ * expects (Audience/Panel/Stage) even though events now live in a real list.
  */
 export interface ConferenceEvent {
+  /** The unique identifier of this event. */
+  id: string;
   /** The main title of the event. */
   title: string;
   /** A subtitle for the event or the specific session. */
@@ -89,6 +95,36 @@ export interface ConferenceEvent {
   allowAnonymous: boolean;
   /** If false, new question submissions are blocked by the server. */
   isAcceptingQuestions: boolean;
+  /** Always true for the event returned as `conferenceEvent` -- included for shape-compatibility with EventRecord. */
+  isLive: boolean;
+}
+
+/**
+ * The full shape of an event as seen in the admin/moderator "Manage Events"
+ * list -- a superset covering every event, not just the live one. Fetched
+ * only via the admin/moderator-gated `/api/events` endpoint, never from the
+ * public `/api/state` snapshot (every event's join code lives here).
+ */
+export interface EventRecord extends ConferenceEvent {
+  createdAt: string;
+}
+
+/**
+ * The 4 valid application roles, sourced from the `users`/`user_roles`
+ * tables (the source of truth for access control -- not Supabase Auth's
+ * `app_metadata`, which is vestigial).
+ */
+export type UserRole = 'admin' | 'moderator' | 'panelist' | 'stage';
+
+/**
+ * A row from the `users` table, mirroring a Supabase Auth account with an
+ * application role attached.
+ */
+export interface AppUser {
+  id: string;
+  email: string;
+  username: string;
+  role: UserRole;
 }
 
 /**

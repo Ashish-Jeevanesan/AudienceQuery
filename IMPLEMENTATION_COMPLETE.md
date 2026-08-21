@@ -40,7 +40,7 @@ Automatically captured on question submission:
 - User agent, language
 - IP address (captured by backend)
 
-#### 6. **Database Schema** (`schema.sql`)
+#### 6. **Database Schema** (`database/schema.sql`)
 Complete PostgreSQL schema includes:
 - Tables: `categories`, `conference_events`, `questions`, `device_metadata`, `audit_log`
 - RLS policies for user isolation
@@ -73,7 +73,7 @@ src/
 root/
   ├── server.ts (complete Supabase integration)
   ├── supabase-admin.ts (NEW - backend admin client)
-  ├── schema.sql (NEW - database schema)
+  ├── database/schema.sql (NEW - database schema)
   ├── SUPABASE_SETUP.md (NEW - setup guide)
   ├── IMPLEMENTATION_COMPLETE.md (THIS FILE)
   ├── PROJECT_LOG.md (updated with all changes)
@@ -161,7 +161,7 @@ localStorage.setItem('qna_session_id', sessionId)
 1. Create Supabase project (free tier available)
 2. Get API credentials from Supabase dashboard
 3. Add credentials to `.env` file
-4. Run `schema.sql` in Supabase SQL Editor
+4. Run `database/schema.sql` in Supabase SQL Editor
 5. Run `npm run dev` to start dev server
 
 **Testing Checklist:**

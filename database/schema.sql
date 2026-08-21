@@ -369,5 +369,221 @@ COMMENT ON COLUMN device_metadata.device_type IS 'Type of device: mobile, tablet
 -- Or use postgres.from() with JWT context in Supabase client
 
 -- ============================================================================
+-- 12. MIGRATION (2026-08-20): Multi-Event Support + Role-Based Users
+-- ============================================================================
+-- Adds: user_roles, users (mirrors auth.users with an app role), events
+-- (replaces the single-row conference_events with a real list, exactly one
+-- of which can be "live" at a time), questions.event_id, and the trigger/
+-- function needed to keep it all populated automatically.
+--
+-- Hand-run this in the Supabase SQL editor BEFORE deploying the server.ts
+-- version that depends on it -- the new code queries `users` for role
+-- checks and `events` for the live event, so deploying first would 403
+-- every admin action and 400 every question submission.
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 12.1 USER_ROLES
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_roles (
+  name TEXT PRIMARY KEY
+);
+
+INSERT INTO user_roles (name) VALUES
+  ('admin'), ('moderator'), ('panelist'), ('stage')
+ON CONFLICT (name) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- 12.2 USERS
+-- ----------------------------------------------------------------------------
+-- Mirrors auth.users with an application role. Populated automatically by
+-- the on_auth_user_created trigger below; backfilled once for accounts that
+-- already existed before this migration.
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  username TEXT,
+  role TEXT NOT NULL REFERENCES user_roles(name) DEFAULT 'panelist',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS: enabled, but deliberately NO permissive policies (default-deny).
+-- The app never queries this table from the browser -- only the server's
+-- service-role client does, which bypasses RLS entirely. Default-deny is
+-- cheap insurance against a future accidental client-side `.from('users')`
+-- call leaking the email directory; do not add a public-select policy here
+-- the way categories/conference_events do.
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- ----------------------------------------------------------------------------
+-- 12.3 AUTO-PROVISION users ON NEW auth.users SIGNUP
+-- ----------------------------------------------------------------------------
+-- SECURITY DEFINER so it can write to public.users regardless of who
+-- triggered the auth.users insert. Any error in here would roll back the
+-- real signup too, so the role value is sanitized against the 4 known
+-- roles instead of trusting the FK to reject bad input.
+--
+-- SECURITY: role is read ONLY from raw_app_meta_data, which can only be
+-- set with the service-role key or via the Supabase dashboard -- never
+-- from raw_user_meta_data, which a client can set for itself at signup
+-- time (e.g. `supabase.auth.signUp({ options: { data: { role: 'admin' } } })`).
+-- Trusting user metadata here would let anyone self-promote to admin.
+CREATE OR REPLACE FUNCTION handle_new_auth_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  requested_role TEXT;
+  safe_role TEXT;
+BEGIN
+  requested_role := NEW.raw_app_meta_data->>'role';
+
+  safe_role := CASE
+    WHEN requested_role IN ('admin', 'moderator', 'panelist', 'stage') THEN requested_role
+    ELSE 'panelist'
+  END;
+
+  INSERT INTO public.users (id, email, username, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+    safe_role
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_auth_user();
+
+-- One-time backfill for accounts created before this migration existed
+-- (e.g. the original administrator account, whose role today lives only
+-- in raw_app_meta_data). Sanitized the same way as the trigger above so a
+-- single stray value can't abort the whole backfill.
+INSERT INTO public.users (id, email, username, role)
+SELECT
+  au.id,
+  au.email,
+  split_part(au.email, '@', 1),
+  CASE
+    WHEN au.raw_app_meta_data->>'role' IN ('admin', 'moderator', 'panelist', 'stage')
+      THEN au.raw_app_meta_data->>'role'
+    ELSE 'panelist'
+  END
+FROM auth.users au
+ON CONFLICT (id) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- 12.4 EVENTS
+-- ----------------------------------------------------------------------------
+-- Replaces the single-row conference_events design with a real list. Each
+-- event owns its own full config; at most one can be is_live at a time,
+-- enforced by the partial unique index below (not just app-level logic).
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  subtitle TEXT DEFAULT '',
+  join_code TEXT UNIQUE NOT NULL,
+  allow_anonymous BOOLEAN DEFAULT true,
+  is_accepting_questions BOOLEAN DEFAULT true,
+  is_live BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS one_live_event ON events(is_live) WHERE is_live = true;
+CREATE INDEX IF NOT EXISTS idx_events_join_code ON events(join_code);
+
+DROP TRIGGER IF EXISTS update_events_updated_at ON events;
+CREATE TRIGGER update_events_updated_at BEFORE UPDATE ON events
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS: enabled, but deliberately NO permissive policies (default-deny),
+-- same reasoning as `users`. The events table drives real authorization
+-- decisions (which event is live, i.e. which questions can be pushed to
+-- the panel) -- a permissive `USING (true)` write policy would let anyone
+-- holding the public anon key call `supabase.from('events').update(...)`
+-- directly from a browser and flip is_live themselves, bypassing every
+-- requireRole check in server.ts and the atomic activate_event function
+-- entirely. Only the server's service-role client (which bypasses RLS)
+-- reads or writes this table -- no client-side code queries it directly.
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+
+-- Atomically switches the live event: two independent .update() calls from
+-- the Node client would be two separate HTTP requests with no shared
+-- transaction, which could leave zero (or briefly two) live events on a
+-- crash or a race between two moderators activating different events at
+-- once. Wrapping both statements in one function makes them one transaction.
+--
+-- Validates the target event exists BEFORE deactivating the current live
+-- event: calling this with a nonexistent id would otherwise still turn off
+-- whichever event is currently live (the first UPDATE is unconditional)
+-- while the second UPDATE silently matches zero rows, leaving no event
+-- live at all. Raising here rolls back the whole function -- including
+-- the first UPDATE -- so the original live event is left untouched.
+CREATE OR REPLACE FUNCTION activate_event(p_event_id UUID)
+RETURNS void AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM events WHERE id = p_event_id) THEN
+    RAISE EXCEPTION 'Event % does not exist', p_event_id;
+  END IF;
+
+  UPDATE events SET is_live = false WHERE is_live = true;
+  UPDATE events SET is_live = true WHERE id = p_event_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- ----------------------------------------------------------------------------
+-- 12.5 QUESTIONS.EVENT_ID
+-- ----------------------------------------------------------------------------
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS event_id UUID REFERENCES events(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_questions_event_id ON questions(event_id);
+
+-- ----------------------------------------------------------------------------
+-- 12.6 BACKFILL: create the "Legacy Event" from the old single-row config
+-- and assign every existing question to it, so nothing is orphaned and the
+-- live app keeps working immediately after this migration runs. Guarded so
+-- it's safe to re-run: it no-ops once a live event already exists.
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+  legacy_event_id UUID;
+BEGIN
+  IF EXISTS (SELECT 1 FROM events WHERE is_live = true) THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO events (title, subtitle, join_code, allow_anonymous, is_accepting_questions, is_live)
+  SELECT title, subtitle, join_code, allow_anonymous, is_accepting_questions, true
+  FROM conference_events
+  ORDER BY created_at ASC
+  LIMIT 1
+  RETURNING id INTO legacy_event_id;
+
+  IF legacy_event_id IS NOT NULL THEN
+    UPDATE questions SET event_id = legacy_event_id WHERE event_id IS NULL;
+  END IF;
+END $$;
+
+-- conference_events is now DEPRECATED and unused -- superseded by `events`
+-- above. Left in place (not dropped) since there is no migration tooling in
+-- this project to safely reverse a DROP TABLE.
+COMMENT ON TABLE conference_events IS 'DEPRECATED, unused as of the 2026-08-20 events/roles migration. Superseded by the events table.';
+COMMENT ON TABLE user_roles IS 'The 4 valid application roles: admin, moderator, panelist, stage.';
+COMMENT ON TABLE users IS 'Mirrors auth.users with an application role; auto-populated by the on_auth_user_created trigger.';
+COMMENT ON TABLE events IS 'A list of conference events; at most one may have is_live = true, enforced by the one_live_event partial unique index.';
+COMMENT ON COLUMN questions.event_id IS 'The event this question belongs to. Only the live event''s approved questions may be pushed to the panel.';
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

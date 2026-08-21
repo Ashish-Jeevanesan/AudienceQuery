@@ -14,7 +14,7 @@
 - ✅ Non-admin users locked out of admin-only screens
 
 ### Phase 2: Supabase Migration
-- ✅ Designed PostgreSQL schema (schema.sql) with 5 tables + RLS
+- ✅ Designed PostgreSQL schema (database/schema.sql) with 5 tables + RLS
 - ✅ Integrated all API endpoints to use Supabase
 - ✅ Removed in-memory database completely
 - ✅ Removed upvote functionality entirely
@@ -84,7 +84,7 @@
 
 3. **Run Database Schema**
    - In Supabase SQL Editor
-   - Paste entire contents of schema.sql
+   - Paste entire contents of database/schema.sql
    - Execute (creates all tables + RLS policies)
 
 4. **Start Development**
@@ -132,7 +132,7 @@
 ```
 AudienceQuery/
 ├── server.ts                    (Express backend - Supabase integrated)
-├── schema.sql                   (PostgreSQL schema)
+├── database/schema.sql                   (PostgreSQL schema)
 ├── supabase-admin.ts           (Backend Supabase client)
 ├── package.json                 (Dependencies updated)
 ├── .env                         (⚠️ User must create)
@@ -202,7 +202,7 @@ All endpoints follow principle of least privilege. Data isolation enforced at ba
    - Generate secure ADMIN_API_TOKEN: `openssl rand -hex 32`
 
 3. **Run Schema**
-   - Execute schema.sql in Supabase SQL Editor
+   - Execute database/schema.sql in Supabase SQL Editor
 
 4. **Test Development Server**
    - `npm run dev`

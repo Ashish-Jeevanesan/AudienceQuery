@@ -10,7 +10,7 @@
 - In-memory database removed (no data persistence across restarts)
 - User isolation implemented (sessionId-based filtering)
 - Device metadata capture implemented
-- Schema file created (`schema.sql`)
+- Schema file created (`database/schema.sql`)
 
 🔧 **Next Steps (Manual):**
 
@@ -38,7 +38,7 @@
 4. **Run the Database Schema**
    - In Supabase, go to SQL Editor
    - Click "New Query"
-   - Copy the entire contents of `schema.sql` from the project root
+   - Copy the entire contents of `database/schema.sql` from the project root
    - Paste it into the SQL editor
    - Click "Run" to execute
 
@@ -92,7 +92,7 @@ To change admin checks, edit the RLS policies in Supabase > Authentication > Pol
 - Make sure there are no extra spaces or quotes
 
 **Questions don't persist**
-- Check that schema.sql ran successfully in Supabase SQL Editor
+- Check that database/schema.sql ran successfully in Supabase SQL Editor
 - Verify the `questions` table exists: Supabase > Tables > questions
 - Check browser console for API errors (F12 > Console)
 
@@ -109,5 +109,5 @@ To change admin checks, edit the RLS policies in Supabase > Authentication > Pol
 - **`server.ts`**: Express backend with all Supabase endpoints
 - **`src/supabaseClient.ts`**: Frontend Supabase client (anon key)
 - **`supabase-admin.ts`**: Backend Supabase admin client (service role key)
-- **`schema.sql`**: Complete database schema (tables, RLS, seed data)
+- **`database/schema.sql`**: Complete database schema (tables, RLS, seed data)
 - **`src/useRealTimeQnA.ts`**: React hook managing SSE and API calls

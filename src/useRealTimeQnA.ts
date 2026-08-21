@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Question, Category, ConferenceEvent, QuestionStatus, ViewRole } from './types';
+import { Question, Category, ConferenceEvent, EventRecord, AppUser, QuestionStatus, ViewRole } from './types';
 import { supabase } from './supabaseClient';
 
 /**
@@ -18,12 +18,20 @@ export function useRealTimeQnA() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [conferenceEvent, setConferenceEvent] = useState<ConferenceEvent>({
+    id: '',
     title: 'To Live is for Christ',
     subtitle: 'Christian Family Conference 2026',
     joinCode: 'LIVE4C',
     allowAnonymous: true,
-    isAcceptingQuestions: true
+    isAcceptingQuestions: true,
+    isLive: false
   });
+  // Full events list and user directory are admin/moderator-only and hold
+  // sensitive data (every event's join code; every user's email) -- fetched
+  // lazily only when their management drawers open, never as part of the
+  // public /api/state snapshot.
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [activeRole, setActiveRole] = useState<ViewRole>('audience');
   const [mySubmittedIds, setMySubmittedIds] = useState<string[]>(() => {
@@ -129,6 +137,14 @@ export function useRealTimeQnA() {
             setQuestions(prev =>
               prev.map(q => q.id === payload.data.id ? payload.data : q)
             );
+          } else if (payload.type === 'category:created' && payload.data) {
+            setCategories(prev =>
+              prev.some(c => c.id === payload.data.id) ? prev : [...prev, payload.data]
+            );
+          } else if ((payload.type === 'event:activated' || payload.type === 'event:updated') && payload.data) {
+            // The broadcast payload is already the public-safe subset (same
+            // shape as `conferenceEvent`) -- never the full admin events list.
+            setConferenceEvent(payload.data);
           }
         } catch (err) {
           console.error('Error parsing SSE message:', err);
@@ -305,21 +321,95 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, fetchFullState, runTracked]);
 
-  const updateEvent = useCallback(async (data: Partial<ConferenceEvent>) => {
+  // Events and users are admin/moderator-only and aren't part of the public
+  // /api/state snapshot -- fetched lazily by whichever drawer needs them.
+  const fetchEvents = useCallback(async () => {
     return runTracked(async () => {
       try {
-        const res = await adminFetch('/api/event', {
+        const res = await adminFetch('/api/events');
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to load events');
+        setEvents(await res.json());
+      } catch (err) {
+        console.error('Fetch events error:', err);
+      }
+    });
+  }, [adminFetch, runTracked]);
+
+  const createEvent = useCallback(async (data: { title: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to create event');
+        await fetchEvents();
+      } catch (err) {
+        console.error('Create event error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchEvents, runTracked]);
+
+  const updateEventById = useCallback(async (id: string, data: { title?: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/events/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Unable to update event');
-        await fetchFullState();
+        await Promise.all([fetchEvents(), fetchFullState()]);
       } catch (err) {
         console.error('Update event error:', err);
+        throw err;
       }
     });
-  }, [adminFetch, fetchFullState, runTracked]);
+  }, [adminFetch, fetchEvents, fetchFullState, runTracked]);
+
+  const activateEvent = useCallback(async (id: string) => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/events/${id}/activate`, { method: 'POST' });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to activate event');
+        await Promise.all([fetchEvents(), fetchFullState()]);
+      } catch (err) {
+        console.error('Activate event error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchEvents, fetchFullState, runTracked]);
+
+  const fetchUsers = useCallback(async () => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/users');
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to load users');
+        setUsers(await res.json());
+      } catch (err) {
+        console.error('Fetch users error:', err);
+      }
+    });
+  }, [adminFetch, runTracked]);
+
+  const updateUser = useCallback(async (id: string, data: { role?: string; username?: string }) => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/users/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to update user');
+        await fetchUsers();
+      } catch (err) {
+        console.error('Update user error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchUsers, runTracked]);
 
   const resetDemoData = useCallback(async () => {
     return runTracked(async () => {
@@ -337,6 +427,8 @@ export function useRealTimeQnA() {
     questions,
     categories,
     conferenceEvent,
+    events,
+    users,
     isConnected,
     isBusy: pendingCount > 0,
     activeRole,
@@ -348,7 +440,12 @@ export function useRealTimeQnA() {
     editQuestion,
     deleteQuestion,
     createCategory,
-    updateEvent,
+    fetchEvents,
+    createEvent,
+    updateEventById,
+    activateEvent,
+    fetchUsers,
+    updateUser,
     resetDemoData
   };
 }

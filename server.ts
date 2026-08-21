@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
-import { Question, Category, ConferenceEvent, QuestionStatus } from './src/types.js';
+import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole } from './src/types.js';
 import { logger } from './src/logger.js';
 
 // Helper: Hash session ID for safe logging
@@ -48,25 +48,52 @@ app.use(cookieParser());
 
 // --- Authentication & Authorization ---
 
+const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
+
 /**
- * Middleware to verify administrator access using a Supabase Auth access token.
- * Roles are read from app_metadata, which can only be changed with the
- * Supabase service-role key (or in the Supabase dashboard).
+ * Middleware factory: verifies the caller is signed in via Supabase Auth AND
+ * holds one of the given application roles. Roles are read from the `users`
+ * table (the source of truth for access control), not from Supabase Auth's
+ * `app_metadata` -- that field is only used once, by the migration's
+ * one-time backfill, and is otherwise vestigial.
+ * Attaches the resolved `{id, email, username, role}` row to `req.appUser`.
  */
-async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!accessToken) {
-    return res.status(401).json({ error: 'Administrator sign-in is required' });
-  }
+function requireRole(...allowedRoles: UserRole[]) {
+  return async function (req: express.Request, res: express.Response, next: express.NextFunction) {
+    const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!accessToken) {
+      return res.status(401).json({ error: 'Sign-in is required' });
+    }
 
-  const { data: { user }, error } = await supabase.auth.getUser(accessToken);
-  const role = user?.app_metadata?.role;
-  if (error || !user || (role !== 'admin' && role !== 'moderator')) {
-    return res.status(403).json({ error: 'Administrator access is required' });
-  }
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (error || !user) {
+      return res.status(401).json({ error: 'Sign-in is required' });
+    }
 
-  next();
+    const { data: appUser, error: roleError } = await supabase
+      .from('users')
+      .select('id, email, username, role')
+      .eq('id', user.id)
+      .single();
+
+    if (roleError || !appUser) {
+      return res.status(403).json({ error: 'No application role is assigned to this account' });
+    }
+
+    if (!allowedRoles.includes(appUser.role)) {
+      return res.status(403).json({ error: 'You do not have permission to perform this action' });
+    }
+
+    (req as any).appUser = appUser;
+    next();
+  };
 }
+
+// Back-compat alias: every endpoint that previously required "admin or
+// moderator" (app_metadata-based) keeps that exact same effective access.
+const requireAdmin = requireRole('admin', 'moderator');
+const requireAdminOnly = requireRole('admin');
+const requireAuth = requireRole(...ALL_ROLES);
 
 /**
  * Helper: Validate session ID format consistently across all endpoints.
@@ -119,7 +146,57 @@ function broadcastStateUpdate(type: string, data?: any) {
   });
 }
 
+// --- Events Helpers ---
+
+/** Maps a Supabase `events` row to the camelCase shape the frontend expects. */
+function mapEventRow(row: any): EventRecord {
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle,
+    joinCode: row.join_code,
+    allowAnonymous: row.allow_anonymous,
+    isAcceptingQuestions: row.is_accepting_questions,
+    isLive: row.is_live,
+    createdAt: row.created_at
+  };
+}
+
+/** Fallback shown only if no event has ever been made live (e.g. the migration hasn't run yet). */
+const NO_LIVE_EVENT_FALLBACK: ConferenceEvent = {
+  id: '',
+  title: 'No Live Event',
+  subtitle: '',
+  joinCode: '',
+  allowAnonymous: true,
+  isAcceptingQuestions: false,
+  isLive: false
+};
+
+/** Resolves the single currently-live event, or null if none is live. */
+async function getLiveEvent(): Promise<ConferenceEvent | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('is_live', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapEventRow(data) : null;
+}
+
 // --- API Endpoints ---
+
+/**
+ * @route GET /api/me
+ * @description Returns the signed-in user's application identity/role.
+ * Called once right after login so the client knows which view(s) to grant.
+ */
+app.get('/api/me', requireAuth, (req, res) => {
+  const appUser = (req as any).appUser;
+  res.json({ id: appUser.id, email: appUser.email, username: appUser.username, role: appUser.role });
+});
 
 /**
  * @route POST /api/session
@@ -238,14 +315,10 @@ app.get('/api/state', async (req, res) => {
 
     logger.debug('Categories fetched', { count: categoriesData?.length || 0 });
 
-    // Fetch conference event (public data, same for all users)
-    const { data: eventData, error: eventError } = await supabase
-      .from('conference_events')
-      .select('*')
-      .limit(1)
-      .single();
-
-    if (eventError && eventError.code !== 'PGRST116') throw eventError;
+    // Resolve the currently live event (public-safe subset only -- the full
+    // events list with every event's join code is admin/moderator-gated via
+    // GET /api/events, never included in this unauthenticated snapshot).
+    const mappedEvent = (await getLiveEvent()) || NO_LIVE_EVENT_FALLBACK;
 
     // Map Supabase snake_case to frontend camelCase
     const mappedQuestions = (questionsData || []).map((q: any) => ({
@@ -258,6 +331,7 @@ app.get('/api/state', async (req, res) => {
       status: q.status,
       isPriority: q.is_priority,
       moderatorNotes: q.moderator_notes,
+      eventId: q.event_id,
       sessionId: q.session_id,
       deviceInfo: q.device_info,
       networkInfo: q.network_info,
@@ -272,14 +346,6 @@ app.get('/api/state', async (req, res) => {
       color: c.color,
       description: c.description
     }));
-
-    const mappedEvent = {
-      title: eventData?.title || 'To Live is for Christ',
-      subtitle: eventData?.subtitle || 'Christian Family Conference 2026',
-      joinCode: eventData?.join_code || 'LIVE4C',
-      allowAnonymous: eventData?.allow_anonymous ?? true,
-      isAcceptingQuestions: eventData?.is_accepting_questions ?? true
-    };
 
     res.json({
       questions: mappedQuestions,
@@ -323,6 +389,11 @@ app.post('/api/questions', async (req, res) => {
   const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
   try {
+    const liveEvent = await getLiveEvent();
+    if (!liveEvent) {
+      return res.status(400).json({ error: 'No event is currently live. Question submissions are closed.' });
+    }
+
     logger.debug('Inserting question into Supabase', { sessionHash: hashSessionId(sessionId) });
 
     // Insert question into Supabase
@@ -335,6 +406,7 @@ app.post('/api/questions', async (req, res) => {
         category_id: categoryId && categoryId.trim() ? categoryId : null,
         status: 'pending',
         is_priority: false,
+        event_id: liveEvent.id,
         session_id: sessionId,
         device_info: deviceInfo || null,
         network_info: {
@@ -362,6 +434,7 @@ app.post('/api/questions', async (req, res) => {
       categoryName: data.categories?.name || '',
       status: data.status,
       isPriority: data.is_priority,
+      eventId: data.event_id,
       sessionId: data.session_id,
       deviceInfo: data.device_info,
       networkInfo: data.network_info,
@@ -401,6 +474,16 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
 
     if (fetchError || !question) {
       return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Only questions belonging to the currently live event may be pushed to
+    // the panel -- enforced here (not just hidden client-side) since this
+    // is the actual authorization boundary.
+    if (status === 'pushed') {
+      const liveEvent = await getLiveEvent();
+      if (!liveEvent || question.event_id !== liveEvent.id) {
+        return res.status(403).json({ error: 'Only questions from the live event can be pushed to the panel.' });
+      }
     }
 
     // If changing to 'answering', demote any currently answering question
@@ -443,6 +526,7 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
       status: updatedQuestion.status,
       isPriority: updatedQuestion.is_priority,
       moderatorNotes: updatedQuestion.moderator_notes,
+      eventId: updatedQuestion.event_id,
       sessionId: updatedQuestion.session_id,
       deviceInfo: updatedQuestion.device_info,
       networkInfo: updatedQuestion.network_info,
@@ -500,6 +584,7 @@ app.patch('/api/questions/:id', requireAdmin, async (req, res) => {
       status: updatedQuestion.status,
       isPriority: updatedQuestion.is_priority,
       moderatorNotes: updatedQuestion.moderator_notes,
+      eventId: updatedQuestion.event_id,
       sessionId: updatedQuestion.session_id,
       deviceInfo: updatedQuestion.device_info,
       networkInfo: updatedQuestion.network_info,
@@ -556,6 +641,7 @@ app.delete('/api/questions/:id', requireAdmin, async (req, res) => {
       status: question.status,
       isPriority: question.is_priority,
       moderatorNotes: question.moderator_notes,
+      eventId: question.event_id,
       sessionId: question.session_id,
       deviceInfo: question.device_info,
       networkInfo: question.network_info,
@@ -613,46 +699,244 @@ app.post('/api/categories', requireAdmin, async (req, res) => {
 });
 
 /**
- * @route PATCH /api/event
- * @description Updates general conference settings.
- * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
- * Persists to Supabase.
+ * @route GET /api/events
+ * @description Lists every event (including join codes) for the Moderator's
+ * "Manage Events" screen. Deliberately NOT part of the public /api/state
+ * snapshot -- that would leak every event's join code to any visitor.
+ * SECURITY: Requires admin or moderator role.
  */
-app.patch('/api/event', requireAdmin, async (req, res) => {
-  const { title, subtitle, isAcceptingQuestions, allowAnonymous } = req.body;
+app.get('/api/events', requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json((data || []).map(mapEventRow));
+  } catch (error: any) {
+    console.error('Error fetching events from Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch events' });
+  }
+});
+
+/**
+ * @route POST /api/events
+ * @description Creates a new event with its own full config. The join code
+ * is generated server-side, retrying on the rare collision.
+ * SECURITY: Requires admin or moderator role.
+ */
+app.post('/api/events', requireAdmin, async (req, res) => {
+  const { title, subtitle, allowAnonymous, isAcceptingQuestions } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'Event title is required' });
+  }
+
+  const generateJoinCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  };
 
   try {
-    // Build update object
-    const updateData: any = {};
-    if (title !== undefined) updateData.title = title;
-    if (subtitle !== undefined) updateData.subtitle = subtitle;
-    if (isAcceptingQuestions !== undefined) updateData.is_accepting_questions = isAcceptingQuestions;
-    if (allowAnonymous !== undefined) updateData.allow_anonymous = allowAnonymous;
+    let insertedEvent: any = null;
+    let lastError: any = null;
 
-    // Update the first (primary) conference event in Supabase
+    for (let attempt = 0; attempt < 5 && !insertedEvent; attempt++) {
+      const { data, error } = await supabase
+        .from('events')
+        .insert({
+          title: title.trim(),
+          subtitle: subtitle?.trim() || '',
+          join_code: generateJoinCode(),
+          allow_anonymous: allowAnonymous ?? true,
+          is_accepting_questions: isAcceptingQuestions ?? true,
+          is_live: false
+        })
+        .select('*')
+        .single();
+
+      if (error) {
+        if (error.code === '23505') { lastError = error; continue; } // join_code collision, retry
+        throw error;
+      }
+      insertedEvent = data;
+    }
+
+    if (!insertedEvent) {
+      throw lastError || new Error('Failed to generate a unique join code');
+    }
+
+    res.status(201).json(mapEventRow(insertedEvent));
+  } catch (error: any) {
+    console.error('Error creating event in Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to create event' });
+  }
+});
+
+/**
+ * @route PATCH /api/events/:id
+ * @description Edits an existing event's config.
+ * SECURITY: Requires admin or moderator role.
+ */
+app.patch('/api/events/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { title, subtitle, allowAnonymous, isAcceptingQuestions } = req.body;
+
+  try {
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title.trim();
+    if (subtitle !== undefined) updateData.subtitle = subtitle;
+    if (allowAnonymous !== undefined) updateData.allow_anonymous = allowAnonymous;
+    if (isAcceptingQuestions !== undefined) updateData.is_accepting_questions = isAcceptingQuestions;
+
     const { data: updatedEvent, error } = await supabase
-      .from('conference_events')
+      .from('events')
       .update(updateData)
-      .limit(1)
+      .eq('id', id)
       .select('*')
       .single();
 
-    if (error) throw error;
+    if (error || !updatedEvent) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
 
-    // Map to frontend format
-    const result: ConferenceEvent = {
-      title: updatedEvent.title,
-      subtitle: updatedEvent.subtitle,
-      joinCode: updatedEvent.join_code,
-      allowAnonymous: updatedEvent.allow_anonymous,
-      isAcceptingQuestions: updatedEvent.is_accepting_questions
-    };
-
-    broadcastStateUpdate('event:updated', result);
+    const result = mapEventRow(updatedEvent);
+    // Only broadcast if this is the live event -- Audience/Panel/Stage only
+    // ever care about the live event's config, and /api/stream has no auth
+    // so nothing beyond that public-safe shape should ever go out on it.
+    if (result.isLive) {
+      broadcastStateUpdate('event:updated', result);
+    }
     res.json(result);
   } catch (error: any) {
-    console.error('Error updating conference event in Supabase:', error);
-    res.status(500).json({ error: error.message || 'Failed to update event settings' });
+    console.error('Error updating event in Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to update event' });
+  }
+});
+
+/**
+ * @route POST /api/events/:id/activate
+ * @description Makes this event the single live event, atomically (via the
+ * `activate_event` Postgres function) so a crash or a race between two
+ * moderators can never leave zero or two live events.
+ * SECURITY: Requires admin or moderator role.
+ */
+app.post('/api/events/:id/activate', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { error: rpcError } = await supabase.rpc('activate_event', { p_event_id: id });
+    if (rpcError) {
+      if ((rpcError as any).code === '23505') {
+        return res.status(409).json({ error: 'Another moderator just changed the live event -- please retry.' });
+      }
+      if ((rpcError as any).code === 'P0001') {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+      throw rpcError;
+    }
+
+    const { data: activatedEvent, error: fetchError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !activatedEvent) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const result = mapEventRow(activatedEvent);
+    broadcastStateUpdate('event:activated', result);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error activating event in Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to activate event' });
+  }
+});
+
+/**
+ * @route GET /api/users
+ * @description Lists every user with their role, for the admin-only "Manage
+ * Users" screen.
+ * SECURITY: Requires admin role (moderators cannot manage other users' roles).
+ */
+app.get('/api/users', requireAdminOnly, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, username, role')
+      .order('email', { ascending: true });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error: any) {
+    console.error('Error fetching users from Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch users' });
+  }
+});
+
+/**
+ * @route PATCH /api/users/:id
+ * @description Updates a user's username and/or role. Guards against ever
+ * removing the last remaining admin (a self-lockout footgun this system has
+ * no other recovery path for).
+ * SECURITY: Requires admin role.
+ */
+app.patch('/api/users/:id', requireAdminOnly, async (req, res) => {
+  const { id } = req.params;
+  const { role, username } = req.body;
+
+  try {
+    if (role !== undefined) {
+      if (!ALL_ROLES.includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+
+      const { data: target, error: targetError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', id)
+        .single();
+
+      if (targetError || !target) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (target.role === 'admin' && role !== 'admin') {
+        const { count, error: countError } = await supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'admin');
+
+        if (countError) throw countError;
+        if ((count ?? 0) <= 1) {
+          return res.status(400).json({ error: 'Cannot remove the last remaining admin.' });
+        }
+      }
+    }
+
+    const updateData: any = {};
+    if (role !== undefined) updateData.role = role;
+    if (username !== undefined) updateData.username = username?.trim() || null;
+
+    const { data: updatedUser, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select('id, email, username, role')
+      .single();
+
+    if (error || !updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(updatedUser);
+  } catch (error: any) {
+    console.error('Error updating user in Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to update user' });
   }
 });
 

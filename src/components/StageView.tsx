@@ -161,6 +161,14 @@ export const StageView: React.FC<StageViewProps> = ({
             </div>
 
           </div>
+        ) : !conferenceEvent.id ? (
+          <div className="max-w-3xl mx-auto text-center space-y-4 py-12">
+            <Monitor className="w-16 h-16 text-indigo-400/60 mx-auto" />
+            <h2 className="text-3xl font-extrabold text-secondary">No Event Is Currently Live</h2>
+            <p className="text-sm max-w-lg mx-auto text-muted">
+              This screen will populate automatically once a moderator starts the next event.
+            </p>
+          </div>
         ) : (
           <div className="max-w-3xl mx-auto text-center space-y-4 py-12">
             <Monitor className="w-16 h-16 text-indigo-400/60 mx-auto animate-bounce" />
