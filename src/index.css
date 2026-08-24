@@ -191,7 +191,10 @@
     border-width: 2px;
     border-radius: 0.875rem;
     padding: 0.75rem 1rem;
-    font-size: 0.95rem;
+    /* 16px, not 15.2px (0.95rem) -- iOS Safari auto-zooms the whole page
+       when focusing any input smaller than 16px, which happened on every
+       text input in the app (question box, name field, etc). */
+    font-size: 1rem;
     transition: all 0.2s ease;
   }
 

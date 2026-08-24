@@ -233,7 +233,12 @@ export default function App() {
           />
         )}
       </main>
-      <Footer />
+      <Footer isAdmin={currentUser?.role === 'admin'} />
+
+      {/* Matches Header's mobile bottom nav bar (shown to the same
+          admin/moderator accounts) -- reserves space at the true bottom of
+          the page so the fixed bar never covers the tail end of the Footer. */}
+      {canViewModerator && <div className="md:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />}
 
       {isLoginOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">

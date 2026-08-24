@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-24] - Going Mobile, Screen 1: Header, Audience View & Bottom Nav
+
+- **Instagram-style bottom nav bar replaces the old single-row header on mobile.** Below the `md` breakpoint, the header collapses to just the logo, event title, and a "⋯" overflow menu; admin/moderator role-switching moves to a fixed bottom bar (Audience/Moderator/Panel/Stage, icon + label + badge counts), which only renders for accounts with more than one screen to switch between — panelist/stage locked-role accounts see no switcher at all, same as before. Desktop/tablet (`md:` and up) keeps the original header markup completely unchanged.
+- **Logged-out visitors on mobile see no tabs and no visible Login button** — just the logo and the question form, to avoid clutter for the audience. Login now lives inside the "⋯" menu, alongside Live status, the language switcher, and theme toggle.
+- **"Reset demo data" relocated into the "⋯" menu** instead of sitting as a bare, unlabeled icon in the main header row. Still no confirmation step before it deletes data — logged in `TODO.md` as a deferred follow-up.
+- **Hero title's mobile floor dropped from 60px to 36px** (`text-6xl` → `text-4xl` at the base breakpoint, `sm:`/`lg:` sizes unchanged) so a real event title wraps to ~3 lines on a phone instead of 5-6 and pushes the question form below the fold.
+- **Two pre-existing bugs, surfaced during the mobile audit and fixed alongside this pass:**
+  - `AudienceView`'s Submit button was missing the `.btn-primary` class — it rendered with no background at all (unstyled, invisible tap target) on every device, in both themes.
+  - Every text input (`.input-base`) was `font-size: 0.95rem` (15.2px), just under iOS Safari's 16px auto-zoom-on-focus threshold, so tapping into any field zoomed the whole page in on iPhone. Bumped to `1rem` (16px).
+- **Methodology**: audited by loading the live app at real 390px/768px viewports (not just reading the code), reviewed with the user via a shared artifact with visual before/after mockups, revised twice per their comments (top tabs → Instagram-style bottom bar; simplified logged-out header), then implemented and re-verified live at both breakpoints plus the logged-out state before shipping.
+
 ## [2026-08-24] - Admin Logs Page
 
 - **New `/logs` page**: a standalone, admin-only log viewer, reachable via a small "Logs" link in the footer that only renders for admins (invisible to everyone else, including moderators). Since it's a real URL rather than something only reachable by clicking through the app, it carries its own inline sign-in form for a visitor who lands there without an existing session, and an "Admins only" message if they're signed in but not an admin.

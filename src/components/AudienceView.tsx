@@ -53,8 +53,8 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
     <div className="min-h-screen" style={{ backgroundColor: `rgb(var(--background))` }}>
       {/* HERO SECTION - REFINED PROPORTIONS */}
       <div className="relative overflow-hidden border-b border-divider" style={{ backgroundColor: `rgb(var(--hero-background))` }}>
-        <div className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-4xl mx-auto space-y-6 text-center">
+        <div className="px-4 py-8 sm:px-6 sm:py-14 lg:px-8 lg:py-20">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 text-center">
             {/* Event Code Badge */}
             <div className="inline-flex items-center justify-center px-4 py-2.5 rounded-full border" style={{
               backgroundColor: `rgb(var(--surface))`,
@@ -66,7 +66,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
             </div>
 
             {/* Main Title */}
-            <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: `rgb(var(--hero-text-primary))` }}>
+            <h1 className="text-4xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: `rgb(var(--hero-text-primary))` }}>
               {getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, i18n.resolvedLanguage || 'en')}
             </h1>
 
@@ -162,9 +162,9 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                       type="checkbox"
                       checked={isAnonymous}
                       onChange={(e) => setIsAnonymous(e.target.checked)}
-                      className="w-5 h-5 opacity-0 absolute"
+                      className="w-6 h-6 opacity-0 absolute"
                     />
-                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center transition-all" style={{
+                    <div className="w-6 h-6 rounded border-2 flex items-center justify-center transition-all" style={{
                       borderColor: isAnonymous ? `rgb(var(--primary))` : `rgb(var(--input-border))`,
                       backgroundColor: isAnonymous ? `rgb(var(--primary))` : 'transparent'
                     }}>
@@ -222,7 +222,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               <button
                 type="submit"
                 disabled={!questionText.trim()}
-                className="btn-base btn-primary-lg w-full mt-8"
+                className="btn-base btn-primary btn-primary-lg w-full mt-8"
               >
                 <Send className="w-5 h-5" />
                 <span>{t('audience.submitQuestion')}</span>
