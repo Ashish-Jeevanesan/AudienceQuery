@@ -1,0 +1,18 @@
+# TODO / Deferred Items
+
+Things that have been flagged during development but intentionally not acted on yet — either awaiting an explicit go-ahead, or noted as optional follow-ups. Ask "any to-do remaining?" any time to get a status check against this list.
+
+## Awaiting your go-ahead
+
+- **Persistent production logging.** On Vercel, `src/logger.ts` never writes a log file (serverless has no durable disk), so `/logs` and `GET /api/logs` only show real data when running locally — in production they just show a placeholder message. If you want real, queryable logs in production, the natural fix is a Supabase-backed `logs` table the server writes to instead of (or alongside) the local file, with `/logs` reading from a new endpoint instead of the file. Not started — you said you'd let me know if this is needed.
+
+## Known issues / optional follow-ups (not blocking anything, just flagged)
+
+- **Stage screen's own UI text stays English.** Its translatable *content* (event title/subtitle, category names) already follows the global language picker, but Stage's own labels ("LIVE ON STAGE", "Join Code:", "Up Next in Queue", etc.) were explicitly deferred to a "v2" pass during the multi-language rollout. Small addition if/when wanted — same pattern as Header/Audience, just one more file.
+- **Hindi/Odia wording hasn't had a native-speaker review.** All translated UI strings and any AI-suggested category/event-name translations are functionally verified but not reviewed by an actual Hindi or Odia speaker. You said you'd handle this yourself since it's all in plain JSON files (`src/i18n/locales/hi.json`, `or.json`) plus whatever moderators enter for categories/events.
+- **Devanagari/Odia text renders in a fallback system font, not the branded typefaces.** Bricolage Grotesque/Fraunces don't cover those scripts, so the browser silently substitutes a system font wherever Hindi/Odia text shows. Cosmetic, not a bug. A matching web font (e.g. Noto Sans Devanagari/Oriya) would fix this if the branding gap matters.
+- **Debug-level logs include PII** (IP addresses, device fingerprints, full question payloads) via pre-existing `logger.debug()` calls in `server.ts` — not something this session added, but now more easily viewable via the new `/logs` page (still admin-only). Worth quieting down at the source if that's a concern.
+- **`GET /api/state` has no authentication at all** — any visitor can call it directly and get every question's `session_id`, `device_info`, and `network_info` (including raw IP), regardless of question status. Pre-existing, flagged during the events/roles work, never addressed.
+- **Missing `@types/react` / `@types/react-dom`.** Flagged early on — without them, most `.tsx` files silently type as `any` in places instead of getting real prop/hook type-checking. `tsc --noEmit` still passes today, so this hasn't caused a real bug, but it's a gap in the safety net.
+- **Header nav bar overflowing horizontally on narrow screens — fixed 2026-08-24.** Was flagged during the theming pass, then the subject of the "Going Mobile" responsiveness plan (Screen 1: Audience view + Header/Footer). Implemented as an Instagram-style bottom nav bar + "⋯" overflow menu on mobile; desktop/tablet unchanged. Verified live at 390px/768px.
+- **"Reset demo data" has no confirmation step.** It permanently deletes every question and category with a single tap/click, no "are you sure." Relocated into the "⋯" overflow menu as part of the "Going Mobile" Screen 1 rework (2026-08-24); adding an actual confirmation step is still deferred to whenever this list gets picked up next.

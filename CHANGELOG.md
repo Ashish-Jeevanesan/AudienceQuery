@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-24] - Admin Logs Page
+
+- **New `/logs` page**: a standalone, admin-only log viewer, reachable via a small "Logs" link in the footer that only renders for admins (invisible to everyone else, including moderators). Since it's a real URL rather than something only reachable by clicking through the app, it carries its own inline sign-in form for a visitor who lands there without an existing session, and an "Admins only" message if they're signed in but not an admin.
+- **Fixes the "Sign-in required" confusion from opening `/api/logs` directly**: that endpoint has always required a `Bearer` token attached programmatically, which a raw browser navigation never sends — the new page authenticates properly via the same token-attachment pattern as the rest of the admin UI, so it actually works instead of erroring.
+- **Pretty-printed, filterable, searchable**: log lines are parsed into timestamp/level/message, colour-coded by level (info/debug/warn/error), with a level filter, a live text search, auto-refresh (every 5s, pausable), and auto-scroll to the newest entry (toggleable). Falls back to showing the raw response as plain text on Vercel, where file-based logging is disabled and `/api/logs` returns an explanatory sentence instead of structured lines.
+- `GET /api/logs` is now admin-only (previously admin-or-moderator), matching the new page's access level.
+- Introduces `react-router-dom` (already a listed but previously unused dependency) for this one route; the rest of the app is unaffected and still renders by `activeRole`, not the URL.
+
 ## [2026-08-21] - Translate Assist for Category & Event Names
 
 - **"Translate" button on moderator-entered names**: the Manage Categories form and both event forms (create + inline edit) in `ModeratorView` now have a Translate button next to their Hindi/Odia fields — it fetches a draft translation from the English text, which the moderator can then correct before saving. Never automatic; only fires on click, and always overwrites whatever's currently in the field so a correction is never silently clobbered by a background fill.

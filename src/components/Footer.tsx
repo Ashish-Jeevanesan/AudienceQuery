@@ -1,8 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Heart, ScrollText } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  /** Shows a small "Logs" link, admin-only -- everyone else never sees it. */
+  isAdmin?: boolean;
+}
+
+export const Footer: React.FC<FooterProps> = ({ isAdmin }) => {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
@@ -54,10 +60,18 @@ export const Footer: React.FC = () => {
         {/* Bottom bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary">
           <p>{t('footer.copyright', { year: currentYear })}</p>
-          <div className="flex items-center gap-1">
-            <span>{t('footer.builtWith')}</span>
-            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-            <span>{t('footer.forLiveEvents')}</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <span>{t('footer.builtWith')}</span>
+              <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+              <span>{t('footer.forLiveEvents')}</span>
+            </div>
+            {isAdmin && (
+              <Link to="/logs" className="flex items-center gap-1 text-muted hover:text-secondary transition-colors text-xs">
+                <ScrollText className="w-3.5 h-3.5" />
+                <span>Logs</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -1035,9 +1035,10 @@ app.post('/api/reset', requireAdmin, async (req, res) => {
 /**
  * @route GET /api/logs
  * @description Returns the current application logs (for debugging).
- * SECURITY: Restricted to admin users only.
+ * SECURITY: Restricted to admin only (not moderator) -- viewed via the
+ * dedicated /logs page.
  */
-app.get('/api/logs', requireAdmin, (req, res) => {
+app.get('/api/logs', requireAdminOnly, (req, res) => {
   try {
     const logContent = logger.getLogContent();
     res.setHeader('Content-Type', 'text/plain');
