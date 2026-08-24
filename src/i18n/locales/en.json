@@ -1,0 +1,67 @@
+{
+  "header": {
+    "audience": "Audience",
+    "login": "Login",
+    "moderator": "Moderator",
+    "panel": "Panel",
+    "stage": "Stage",
+    "panelView": "Panel View",
+    "stageView": "Stage View",
+    "live": "Live",
+    "offline": "Offline",
+    "toggleTheme": "Toggle theme",
+    "resetDemo": "Reset demo",
+    "signOut": "Sign out",
+    "language": "Language"
+  },
+  "footer": {
+    "tagline": "Real-time Q&A platform for live events and conferences.",
+    "features": "Features",
+    "featureLiveQna": "Live Q&A",
+    "featureRealtime": "Real-time Updates",
+    "featureModeratorDashboard": "Moderator Dashboard",
+    "featureStageDisplay": "Stage Display",
+    "info": "Info",
+    "infoBuiltWith": "Built with React & TypeScript",
+    "infoSupabase": "Powered by Supabase",
+    "infoSse": "Real-time via Server-Sent Events",
+    "builtWith": "Built with",
+    "forLiveEvents": "for live events",
+    "copyright": "© {{year}} AudienceQuery. All rights reserved."
+  },
+  "login": {
+    "heading": "Sign in",
+    "subtext": "Sign in with the account created for you in Supabase.",
+    "email": "Email",
+    "password": "Password",
+    "cancel": "Cancel",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "errorFallback": "Unable to sign in.",
+    "noAccessError": "This account does not have application access."
+  },
+  "audience": {
+    "eventCode": "Event Code:",
+    "askQuestion": "Ask a Question",
+    "askQuestionSubtext": "Share your thoughts and perspectives with our panel",
+    "noLiveEvent": "No event is currently live.",
+    "noLiveEventSubtext": "Question submissions will reopen once a moderator starts the next event.",
+    "submitSuccess": "Question submitted successfully!",
+    "yourQuestion": "Your Question",
+    "questionPlaceholder": "Share what's on your mind...",
+    "characterCount_one": "{{count}} character",
+    "characterCount_other": "{{count}} characters",
+    "askAnonymously": "Ask anonymously",
+    "yourName": "Your Name",
+    "namePlaceholder": "Enter your name",
+    "topicOptional": "Topic (Optional)",
+    "selectTopic": "Select a topic...",
+    "submitQuestion": "Submit Question",
+    "submitErrorFallback": "Failed to submit question. Please try again.",
+    "footerNote": "✨ Your question will be reviewed by our moderators and featured if selected."
+  },
+  "loader": {
+    "savingPleaseWait": "Saving, please wait",
+    "syncing": "Syncing…"
+  }
+}

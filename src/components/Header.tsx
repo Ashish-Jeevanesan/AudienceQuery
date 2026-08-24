@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ViewRole, AppUser } from '../types';
 import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Sun, Moon, LogOut } from 'lucide-react';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface HeaderProps {
   activeRole: ViewRole;
@@ -17,11 +19,6 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  panelist: 'Panel View',
-  stage: 'Stage View'
-};
-
 export const Header: React.FC<HeaderProps> = ({
   activeRole,
   setActiveRole,
@@ -36,6 +33,13 @@ export const Header: React.FC<HeaderProps> = ({
   onLogin,
   onLogout
 }) => {
+  const { t } = useTranslation();
+
+  const ROLE_LABELS: Record<string, string> = {
+    panelist: t('header.panelView'),
+    stage: t('header.stageView')
+  };
+
   // Admin/moderator freely switch among all 4 views, exactly as before.
   // Panelist/Stage are dedicated restricted logins -- they never see a tab
   // switcher at all, only their own locked-in view.
@@ -113,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
                   } : {}}
                 >
                   <Users className="w-4 h-4" style={activeRole === 'audience' ? { color: `rgb(var(--nav-active-icon))` } : {}} />
-                  <span>Audience</span>
+                  <span>{t('header.audience')}</span>
                 </button>
 
                 {/* Moderator/Panel/Stage tabs only exist for admin/moderator
@@ -127,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `rgb(var(--primary))`}
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Login</span>
+                    <span>{t('header.login')}</span>
                   </button>
                 ) : (
                   <>
@@ -141,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
                       } : {}}
                     >
                       <ShieldCheck className="w-4 h-4" style={activeRole === 'moderator' ? { color: `rgb(var(--nav-active-icon))` } : {}} />
-                      <span>Moderator</span>
+                      <span>{t('header.moderator')}</span>
                       {pendingCount > 0 && (
                         <span className="ml-1 px-2 py-0.5 text-xs rounded-full font-bold text-white" style={{ backgroundColor: `rgb(var(--danger))` }}>
                           {pendingCount}
@@ -159,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
                       } : {}}
                     >
                       <Mic className="w-4 h-4" style={activeRole === 'panel' ? { color: `rgb(var(--nav-active-icon))` } : {}} />
-                      <span>Panel</span>
+                      <span>{t('header.panel')}</span>
                       {pushedCount > 0 && (
                         <span className="ml-1 px-2 py-0.5 text-xs rounded-full font-bold text-slate-900" style={{ backgroundColor: `rgb(var(--accent))` }}>
                           {pushedCount}
@@ -177,7 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
                       } : {}}
                     >
                       <Monitor className="w-4 h-4" style={activeRole === 'stage' ? { color: `rgb(var(--nav-active-icon))` } : {}} />
-                      <span>Stage</span>
+                      <span>{t('header.stage')}</span>
                       {answeringCount > 0 && (
                         <span className="ml-1 px-2 py-0.5 text-xs rounded-full font-bold text-white" style={{ backgroundColor: `rgb(var(--primary))` }}>
                           {answeringCount}
@@ -196,21 +200,24 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: `rgb(var(--surface-hover))` }}>
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: `rgb(var(--status-live))` }}></div>
               <span className="text-xs font-semibold text-secondary" style={{ color: `rgb(var(--text-secondary))` }}>
-                {isConnected ? 'Live' : 'Offline'}
+                {isConnected ? t('header.live') : t('header.offline')}
               </span>
             </div>
+
+            {/* Language Switcher */}
+            <LanguageSwitcher />
 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg transition-colors"
-              style={{ 
+              style={{
                 color: `rgb(var(--text-secondary))`,
                 backgroundColor: 'transparent'
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `rgb(var(--surface-hover))`}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="Toggle theme"
+              title={t('header.toggleTheme')}
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
@@ -225,7 +232,7 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `rgb(var(--surface-hover))`}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="Reset demo"
+              title={t('header.resetDemo')}
             >
               <RefreshCw className="w-5 h-5" />
             </button>
@@ -241,7 +248,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `rgb(var(--surface-hover))`}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                title="Sign out"
+                title={t('header.signOut')}
               >
                 <LogOut className="w-5 h-5" />
               </button>

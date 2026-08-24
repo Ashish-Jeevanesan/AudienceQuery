@@ -305,7 +305,7 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, fetchFullState, runTracked]);
 
-  const createCategory = useCallback(async (data: { name: string; color: string; description?: string }) => {
+  const createCategory = useCallback(async (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch('/api/categories', {
@@ -335,7 +335,7 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, runTracked]);
 
-  const createEvent = useCallback(async (data: { title: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+  const createEvent = useCallback(async (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch('/api/events', {
@@ -352,7 +352,7 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, fetchEvents, runTracked]);
 
-  const updateEventById = useCallback(async (id: string, data: { title?: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+  const updateEventById = useCallback(async (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch(`/api/events/${id}`, {
@@ -423,6 +423,29 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, fetchFullState, runTracked]);
 
+  // Fetches a Hindi/Odia draft translation of moderator-entered text (a
+  // category name, event title/subtitle) -- always an editable suggestion,
+  // never authoritative. Returns whichever targets succeeded; a target
+  // that failed (rate-limited, network) is simply absent from the result.
+  const translateText = useCallback(async (text: string, targets: ('hi' | 'or')[]): Promise<Partial<Record<'hi' | 'or', string>>> => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, targets })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to translate');
+        const data = await res.json();
+        const { errors, ...translations } = data;
+        return translations;
+      } catch (err) {
+        console.error('Translate error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, runTracked]);
+
   return {
     questions,
     categories,
@@ -446,6 +469,7 @@ export function useRealTimeQnA() {
     activateEvent,
     fetchUsers,
     updateUser,
+    translateText,
     resetDemoData
   };
 }

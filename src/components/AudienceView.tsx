@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageSquare, Send } from 'lucide-react';
 import type { Category, ConferenceEvent } from '../types';
+import { getLocalizedText } from '../i18n/localizedContent';
 
 interface AudienceViewProps {
   categories: Category[];
@@ -15,6 +17,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   conferenceEvent,
   onSubmit
 }) => {
+  const { t, i18n } = useTranslation();
   const [questionText, setQuestionText] = useState('');
   const [authorName, setAuthorName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -42,7 +45,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
       setSubmittedSuccess(true);
       setTimeout(() => setSubmittedSuccess(false), 4000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to submit question. Please try again.');
+      setErrorMsg(err.message || t('audience.submitErrorFallback'));
     }
   };
 
@@ -58,18 +61,18 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               borderColor: `rgb(var(--border-strong))`
             }}>
               <span className="text-sm font-semibold" style={{ color: `rgb(var(--text-secondary))` }}>
-                Event Code: <span className="font-bold ml-2" style={{ color: `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
+                {t('audience.eventCode')} <span className="font-bold ml-2" style={{ color: `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
               </span>
             </div>
 
             {/* Main Title */}
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: `rgb(var(--hero-text-primary))` }}>
-              {conferenceEvent.title}
+              {getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, i18n.resolvedLanguage || 'en')}
             </h1>
 
             {/* Subtitle */}
             <p className="text-lg sm:text-xl" style={{ color: `rgb(var(--hero-text-secondary))` }}>
-              {conferenceEvent.subtitle}
+              {getLocalizedText(conferenceEvent.subtitle, conferenceEvent.subtitleHi, conferenceEvent.subtitleOr, i18n.resolvedLanguage || 'en')}
             </p>
           </div>
         </div>
@@ -86,8 +89,8 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                 <MessageSquare className="w-6 h-6 text-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-3xl font-bold text-white">Ask a Question</h2>
-                <p className="text-white/80 text-sm mt-1">Share your thoughts and perspectives with our panel</p>
+                <h2 className="text-3xl font-bold text-white">{t('audience.askQuestion')}</h2>
+                <p className="text-white/80 text-sm mt-1">{t('audience.askQuestionSubtext')}</p>
               </div>
             </div>
           </div>
@@ -96,9 +99,9 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
           <div className="px-6 sm:px-8 py-8 space-y-6" style={{ backgroundColor: `rgb(var(--surface-elevated))` }}>
             {!conferenceEvent.id ? (
               <div className="text-center py-6 space-y-2">
-                <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>No event is currently live.</p>
+                <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('audience.noLiveEvent')}</p>
                 <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
-                  Question submissions will reopen once a moderator starts the next event.
+                  {t('audience.noLiveEventSubtext')}
                 </p>
               </div>
             ) : (
@@ -113,7 +116,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                   <span className="text-white text-sm font-bold">✓</span>
                 </div>
                 <span className="font-medium" style={{ color: `rgb(var(--success))` }}>
-                  Question submitted successfully!
+                  {t('audience.submitSuccess')}
                 </span>
               </div>
             )}
@@ -138,16 +141,16 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               {/* Question Textarea */}
               <div className="space-y-2">
                 <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
-                  Your Question
+                  {t('audience.yourQuestion')}
                 </label>
                 <textarea
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
-                  placeholder="Share what's on your mind..."
+                  placeholder={t('audience.questionPlaceholder')}
                   className="input-base w-full h-32 resize-none"
                 />
                 <p className="text-xs font-medium" style={{ color: `rgb(var(--text-muted))` }}>
-                  {questionText.length} characters
+                  {t('audience.characterCount', { count: questionText.length })}
                 </p>
               </div>
 
@@ -169,7 +172,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                     </div>
                   </div>
                   <span className="ml-3 font-semibold group-hover:opacity-80 transition" style={{ color: `rgb(var(--text-primary))` }}>
-                    Ask anonymously
+                    {t('audience.askAnonymously')}
                   </span>
                 </label>
               </div>
@@ -178,13 +181,13 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               {!isAnonymous && (
                 <div className="space-y-2">
                   <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
-                    Your Name
+                    {t('audience.yourName')}
                   </label>
                   <input
                     type="text"
                     value={authorName}
                     onChange={(e) => setAuthorName(e.target.value)}
-                    placeholder="Enter your name"
+                    placeholder={t('audience.namePlaceholder')}
                     className="input-base w-full"
                   />
                 </div>
@@ -194,7 +197,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
               {categories.length > 0 && (
                 <div className="space-y-2">
                   <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
-                    Topic (Optional)
+                    {t('audience.topicOptional')}
                   </label>
                   <select
                     value={selectedCategoryId}
@@ -207,9 +210,9 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                       paddingRight: '2.5rem'
                     }}
                   >
-                    <option value="">Select a topic...</option>
+                    <option value="">{t('audience.selectTopic')}</option>
                     {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.id}>{getLocalizedText(cat.name, cat.nameHi, cat.nameOr, i18n.resolvedLanguage || 'en')}</option>
                     ))}
                   </select>
                 </div>
@@ -222,7 +225,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                 className="btn-base btn-primary-lg w-full mt-8"
               >
                 <Send className="w-5 h-5" />
-                <span>Submit Question</span>
+                <span>{t('audience.submitQuestion')}</span>
               </button>
             </form>
               </>
@@ -236,7 +239,7 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
             backgroundColor: `rgb(var(--surface-secondary))`
           }}>
             <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
-              ✨ Your question will be reviewed by our moderators and featured if selected.
+              {t('audience.footerNote')}
             </p>
           </div>
         </div>

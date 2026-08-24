@@ -585,5 +585,36 @@ COMMENT ON TABLE events IS 'A list of conference events; at most one may have is
 COMMENT ON COLUMN questions.event_id IS 'The event this question belongs to. Only the live event''s approved questions may be pushed to the panel.';
 
 -- ============================================================================
+-- 13. MIGRATION (2026-08-21): Multi-language category names
+-- ============================================================================
+-- Supports the audience-facing English/Hindi/Odia language switcher: the
+-- topic dropdown a question-asker sees needs to show the category name in
+-- their chosen language. `name` stays the canonical/English value and the
+-- required column; these two are optional per-language overrides entered
+-- by a moderator, with the app falling back to `name` when empty.
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_hi TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS name_or TEXT;
+
+COMMENT ON COLUMN categories.name_hi IS 'Hindi translation of the category name, optional; falls back to `name` when null.';
+COMMENT ON COLUMN categories.name_or IS 'Odia translation of the category name, optional; falls back to `name` when null.';
+
+-- ============================================================================
+-- 14. MIGRATION (2026-08-21): Multi-language event title/subtitle
+-- ============================================================================
+-- Same pattern as migration 13 above, applied to `events`: the audience's
+-- hero heading, the header bar, and the Stage display all resolve the
+-- event's title/subtitle in the viewer's chosen language, falling back to
+-- the canonical English `title`/`subtitle` when no translation was entered.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS title_hi TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS title_or TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS subtitle_hi TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS subtitle_or TEXT;
+
+COMMENT ON COLUMN events.title_hi IS 'Hindi translation of the event title, optional; falls back to `title` when null.';
+COMMENT ON COLUMN events.title_or IS 'Odia translation of the event title, optional; falls back to `title` when null.';
+COMMENT ON COLUMN events.subtitle_hi IS 'Hindi translation of the event subtitle, optional; falls back to `subtitle` when null.';
+COMMENT ON COLUMN events.subtitle_or IS 'Odia translation of the event subtitle, optional; falls back to `subtitle` when null.';
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

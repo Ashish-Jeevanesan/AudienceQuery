@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRealTimeQnA } from './useRealTimeQnA';
 import { Header } from './components/Header';
 import { AudienceView } from './components/AudienceView';
@@ -17,6 +18,7 @@ import { StageView } from './components/StageView';
 import { GlobalLoader } from './components/GlobalLoader';
 import type { AppUser } from './types';
 import { supabase } from './supabaseClient';
+import { getLocalizedText } from './i18n/localizedContent';
 
 /**
  * The main application component.
@@ -26,6 +28,7 @@ import { supabase } from './supabaseClient';
  * @returns {React.ReactElement} The rendered application.
  */
 export default function App() {
+  const { t, i18n } = useTranslation();
   // The signed-in user's application identity/role, resolved via /api/me.
   // null means either logged out, or logged in with no application role.
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -93,6 +96,7 @@ export default function App() {
     activateEvent,
     fetchUsers,
     updateUser,
+    translateText,
     resetDemoData
   } = useRealTimeQnA();
 
@@ -131,7 +135,7 @@ export default function App() {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.user) {
-      setLoginError(error?.message || 'Unable to sign in.');
+      setLoginError(error?.message || t('login.errorFallback'));
       setIsLoggingIn(false);
       return;
     }
@@ -139,7 +143,7 @@ export default function App() {
     const user = await resolveCurrentUser();
     if (!user) {
       await supabase.auth.signOut();
-      setLoginError('This account does not have application access.');
+      setLoginError(t('login.noAccessError'));
       setIsLoggingIn(false);
       return;
     }
@@ -162,8 +166,8 @@ export default function App() {
       <Header
         activeRole={activeRole}
         setActiveRole={setActiveRole}
-        title={conferenceEvent.title}
-        subtitle={conferenceEvent.subtitle}
+        title={getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, i18n.resolvedLanguage || 'en')}
+        subtitle={getLocalizedText(conferenceEvent.subtitle, conferenceEvent.subtitleHi, conferenceEvent.subtitleOr, i18n.resolvedLanguage || 'en')}
         isConnected={isConnected}
         onResetDemo={resetDemoData}
         pendingCount={pendingCount}
@@ -206,6 +210,7 @@ export default function App() {
             onActivateEvent={activateEvent}
             onFetchUsers={fetchUsers}
             onUpdateUser={updateUser}
+            onTranslateText={translateText}
           />
         )}
 
@@ -233,18 +238,18 @@ export default function App() {
       {isLoginOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
           <form onSubmit={submitLogin} className="w-full max-w-sm rounded-2xl bg-surface p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-primary">Sign in</h2>
-            <p className="mt-1 text-sm text-secondary">Sign in with the account created for you in Supabase.</p>
-            <label className="mt-5 block text-sm font-medium text-secondary">Email
+            <h2 className="text-xl font-bold text-primary">{t('login.heading')}</h2>
+            <p className="mt-1 text-sm text-secondary">{t('login.subtext')}</p>
+            <label className="mt-5 block text-sm font-medium text-secondary">{t('login.email')}
               <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base mt-1 w-full" autoComplete="email" />
             </label>
-            <label className="mt-3 block text-sm font-medium text-secondary">Password
+            <label className="mt-3 block text-sm font-medium text-secondary">{t('login.password')}
               <input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="input-base mt-1 w-full" autoComplete="current-password" />
             </label>
             {loginError && <p className="mt-3 text-sm text-rose-600">{loginError}</p>}
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setIsLoginOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-secondary">Cancel</button>
-              <button disabled={isLoggingIn} type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isLoggingIn ? 'Signing in…' : 'Sign in'}</button>
+              <button type="button" onClick={() => setIsLoginOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-secondary">{t('login.cancel')}</button>
+              <button disabled={isLoggingIn} type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isLoggingIn ? t('login.signingIn') : t('login.signIn')}</button>
             </div>
           </form>
         </div>

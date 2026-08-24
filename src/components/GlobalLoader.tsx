@@ -7,6 +7,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'motion/react';
 
 interface GlobalLoaderProps {
@@ -14,6 +15,8 @@ interface GlobalLoaderProps {
 }
 
 export const GlobalLoader: React.FC<GlobalLoaderProps> = ({ isVisible }) => {
+  const { t } = useTranslation();
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -25,7 +28,7 @@ export const GlobalLoader: React.FC<GlobalLoaderProps> = ({ isVisible }) => {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm"
           role="status"
           aria-live="polite"
-          aria-label="Saving, please wait"
+          aria-label={t('loader.savingPleaseWait')}
         >
           <motion.div
             initial={{ scale: 0.92, opacity: 0 }}
@@ -42,7 +45,7 @@ export const GlobalLoader: React.FC<GlobalLoaderProps> = ({ isVisible }) => {
                 style={{ animationDuration: '1.4s', animationDirection: 'reverse' }}
               />
             </span>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Syncing…</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('loader.syncing')}</p>
           </motion.div>
         </motion.div>
       )}

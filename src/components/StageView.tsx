@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import { Question, Category, ConferenceEvent } from '../types';
 import { Sparkles, Monitor, Maximize2, Radio, Clock } from 'lucide-react';
+import { getLocalizedText } from '../i18n/localizedContent';
 
 interface StageViewProps {
   questions: Question[];
@@ -14,6 +16,11 @@ export const StageView: React.FC<StageViewProps> = ({
   categories,
   conferenceEvent
 }) => {
+  // Stage's own labels stay English (out of the UI-translation scope), but
+  // the event name and category names are translatable content -- they
+  // follow the global language picker the same way Header/AudienceView do.
+  const { i18n } = useTranslation();
+  const language = i18n.resolvedLanguage || 'en';
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [elapsedSecs, setElapsedSecs] = useState(0);
 
@@ -84,13 +91,13 @@ export const StageView: React.FC<StageViewProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-primary truncate">{conferenceEvent.title}</h1>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-primary truncate">{getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, language)}</h1>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
                   <Radio className="w-3.5 h-3.5 mr-1.5 animate-pulse" />
                   LIVE ON STAGE
                 </span>
               </div>
-              <p className="text-sm mt-0.5 text-muted truncate">{conferenceEvent.subtitle}</p>
+              <p className="text-sm mt-0.5 text-muted truncate">{getLocalizedText(conferenceEvent.subtitle, conferenceEvent.subtitleHi, conferenceEvent.subtitleOr, language)}</p>
             </div>
           </div>
 
@@ -131,9 +138,14 @@ export const StageView: React.FC<StageViewProps> = ({
             {/* Header Status Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-3">
-                <span className={`px-4 py-1.5 rounded-xl text-sm font-extrabold border ${getCategoryBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
-                  {currentAnswering.categoryName}
-                </span>
+                {(() => {
+                  const category = categories.find(c => c.id === currentAnswering.categoryId);
+                  return (
+                    <span className={`px-4 py-1.5 rounded-xl text-sm font-extrabold border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
+                      {category ? getLocalizedText(category.name, category.nameHi, category.nameOr, language) : currentAnswering.categoryName}
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center space-x-2 px-4 py-2 rounded-2xl border border-divider-strong font-mono text-sm font-bold bg-surface-secondary" style={{ color: 'rgb(var(--primary))' }}>
@@ -200,7 +212,7 @@ export const StageView: React.FC<StageViewProps> = ({
                 <div key={q.id} className="rounded-xl p-3.5 border border-divider text-xs space-y-1.5 bg-surface shadow-sm">
                   <div className="flex items-center">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
-                      {q.categoryName}
+                      {category ? getLocalizedText(category.name, category.nameHi, category.nameOr, language) : q.categoryName}
                     </span>
                   </div>
                   <p className="font-medium line-clamp-2 text-secondary">

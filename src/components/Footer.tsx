@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Heart } from 'lucide-react';
 
 export const Footer: React.FC = () => {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
   return (
@@ -20,28 +22,28 @@ export const Footer: React.FC = () => {
               <span className="font-semibold text-primary">AudienceQuery</span>
             </div>
             <p className="text-sm text-secondary">
-              Real-time Q&A platform for live events and conferences.
+              {t('footer.tagline')}
             </p>
           </div>
 
           {/* Features */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-primary text-sm">Features</h3>
+            <h3 className="font-semibold text-primary text-sm">{t('footer.features')}</h3>
             <ul className="space-y-2 text-sm text-secondary">
-              <li className="hover:text-[rgb(var(--primary))] transition-colors">Live Q&A</li>
-              <li className="hover:text-[rgb(var(--primary))] transition-colors">Real-time Updates</li>
-              <li className="hover:text-[rgb(var(--primary))] transition-colors">Moderator Dashboard</li>
-              <li className="hover:text-[rgb(var(--primary))] transition-colors">Stage Display</li>
+              <li className="hover:text-[rgb(var(--primary))] transition-colors">{t('footer.featureLiveQna')}</li>
+              <li className="hover:text-[rgb(var(--primary))] transition-colors">{t('footer.featureRealtime')}</li>
+              <li className="hover:text-[rgb(var(--primary))] transition-colors">{t('footer.featureModeratorDashboard')}</li>
+              <li className="hover:text-[rgb(var(--primary))] transition-colors">{t('footer.featureStageDisplay')}</li>
             </ul>
           </div>
 
           {/* Info */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-primary text-sm">Info</h3>
+            <h3 className="font-semibold text-primary text-sm">{t('footer.info')}</h3>
             <ul className="space-y-2 text-sm text-secondary">
-              <li>Built with React & TypeScript</li>
-              <li>Powered by Supabase</li>
-              <li>Real-time via Server-Sent Events</li>
+              <li>{t('footer.infoBuiltWith')}</li>
+              <li>{t('footer.infoSupabase')}</li>
+              <li>{t('footer.infoSse')}</li>
             </ul>
           </div>
         </div>
@@ -51,11 +53,11 @@ export const Footer: React.FC = () => {
 
         {/* Bottom bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-secondary">
-          <p>© {currentYear} AudienceQuery. All rights reserved.</p>
+          <p>{t('footer.copyright', { year: currentYear })}</p>
           <div className="flex items-center gap-1">
-            <span>Built with</span>
+            <span>{t('footer.builtWith')}</span>
             <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-            <span>for live events</span>
+            <span>{t('footer.forLiveEvents')}</span>
           </div>
         </div>
       </div>

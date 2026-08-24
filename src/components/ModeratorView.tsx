@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2 } from 'lucide-react';
 
 const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
 
@@ -25,13 +25,14 @@ interface ModeratorViewProps {
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
   onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
-  onCreateCategory: (data: { name: string; color: string; description?: string }) => void;
+  onCreateCategory: (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => void;
   onFetchEvents: () => void;
-  onCreateEvent: (data: { title: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
-  onUpdateEvent: (id: string, data: { title?: string; subtitle?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
+  onCreateEvent: (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
+  onUpdateEvent: (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
   onActivateEvent: (id: string) => Promise<void>;
   onFetchUsers: () => void;
   onUpdateUser: (id: string, data: { role?: string; username?: string }) => Promise<void>;
+  onTranslateText: (text: string, targets: ('hi' | 'or')[]) => Promise<Partial<Record<'hi' | 'or', string>>>;
 }
 
 /**
@@ -55,7 +56,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onUpdateEvent,
   onActivateEvent,
   onFetchUsers,
-  onUpdateUser
+  onUpdateUser,
+  onTranslateText
 }) => {
   // State variables for filter tabs, search, and sorting
   const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
@@ -77,12 +79,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // Categories drawer state (toggles visibility of the "Manage Categories" card)
   const [showCategories, setShowCategories] = useState(false);
   const [newCatName, setNewCatName] = useState('');
+  const [newCatNameHi, setNewCatNameHi] = useState('');
+  const [newCatNameOr, setNewCatNameOr] = useState('');
   const [newCatColor, setNewCatColor] = useState('indigo');
 
   // Events drawer state
   const [showEvents, setShowEvents] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventTitleHi, setNewEventTitleHi] = useState('');
+  const [newEventTitleOr, setNewEventTitleOr] = useState('');
   const [newEventSubtitle, setNewEventSubtitle] = useState('');
+  const [newEventSubtitleHi, setNewEventSubtitleHi] = useState('');
+  const [newEventSubtitleOr, setNewEventSubtitleOr] = useState('');
   const [newEventAllowAnonymous, setNewEventAllowAnonymous] = useState(true);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [createEventError, setCreateEventError] = useState('');
@@ -91,9 +99,47 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
   // Per-event inline edit (title/subtitle/allowAnonymous/isAcceptingQuestions)
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [eventEditDraft, setEventEditDraft] = useState<{ title: string; subtitle: string; allowAnonymous: boolean; isAcceptingQuestions: boolean }>({ title: '', subtitle: '', allowAnonymous: true, isAcceptingQuestions: true });
+  const [eventEditDraft, setEventEditDraft] = useState<{ title: string; titleHi: string; titleOr: string; subtitle: string; subtitleHi: string; subtitleOr: string; allowAnonymous: boolean; isAcceptingQuestions: boolean }>({ title: '', titleHi: '', titleOr: '', subtitle: '', subtitleHi: '', subtitleOr: '', allowAnonymous: true, isAcceptingQuestions: true });
   const [eventEditError, setEventEditError] = useState('');
   const [savingEventEdit, setSavingEventEdit] = useState(false);
+
+  // Shared "Translate" button state -- one in-flight translation at a time,
+  // identified by a field key (e.g. 'newCatName', 'eventEdit.title'), plus
+  // any error scoped to that same key so it only shows next to the field
+  // that actually failed.
+  const [translatingField, setTranslatingField] = useState<string | null>(null);
+  const [translateError, setTranslateError] = useState<{ field: string; message: string } | null>(null);
+
+  const handleTranslate = async (fieldKey: string, text: string, setHi: (v: string) => void, setOr: (v: string) => void) => {
+    if (!text.trim()) return;
+    setTranslatingField(fieldKey);
+    setTranslateError(null);
+    try {
+      const result = await onTranslateText(text.trim(), ['hi', 'or']);
+      if (result.hi) setHi(result.hi);
+      if (result.or) setOr(result.or);
+      if (!result.hi && !result.or) {
+        setTranslateError({ field: fieldKey, message: 'No translation returned. Please type it manually.' });
+      }
+    } catch (err: any) {
+      setTranslateError({ field: fieldKey, message: err?.message || 'Translation failed. Please type it manually.' });
+    } finally {
+      setTranslatingField(null);
+    }
+  };
+
+  /** A small inline "Translate" icon button, reused everywhere a name/title field has Hindi/Odia companions. */
+  const TranslateButton: React.FC<{ fieldKey: string; sourceText: string; setHi: (v: string) => void; setOr: (v: string) => void }> = ({ fieldKey, sourceText, setHi, setOr }) => (
+    <button
+      type="button"
+      onClick={() => handleTranslate(fieldKey, sourceText, setHi, setOr)}
+      disabled={!sourceText.trim() || translatingField === fieldKey}
+      title="Translate into Hindi & Odia"
+      className="p-2 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+    >
+      {translatingField === fieldKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+    </button>
+  );
 
   // Users drawer state (admin only)
   const [showUsers, setShowUsers] = useState(false);
@@ -195,8 +241,15 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    onCreateCategory({ name: newCatName.trim(), color: newCatColor });
+    onCreateCategory({
+      name: newCatName.trim(),
+      nameHi: newCatNameHi.trim() || undefined,
+      nameOr: newCatNameOr.trim() || undefined,
+      color: newCatColor
+    });
     setNewCatName('');
+    setNewCatNameHi('');
+    setNewCatNameOr('');
   };
 
   /**
@@ -224,12 +277,20 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     try {
       await onCreateEvent({
         title: newEventTitle.trim(),
+        titleHi: newEventTitleHi.trim() || undefined,
+        titleOr: newEventTitleOr.trim() || undefined,
         subtitle: newEventSubtitle.trim(),
+        subtitleHi: newEventSubtitleHi.trim() || undefined,
+        subtitleOr: newEventSubtitleOr.trim() || undefined,
         allowAnonymous: newEventAllowAnonymous,
         isAcceptingQuestions: true
       });
       setNewEventTitle('');
+      setNewEventTitleHi('');
+      setNewEventTitleOr('');
       setNewEventSubtitle('');
+      setNewEventSubtitleHi('');
+      setNewEventSubtitleOr('');
       setNewEventAllowAnonymous(true);
     } catch (err: any) {
       setCreateEventError(err?.message || 'Unable to create event. Please try again.');
@@ -258,7 +319,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setEditingEventId(evt.id);
     setEventEditDraft({
       title: evt.title,
+      titleHi: evt.titleHi || '',
+      titleOr: evt.titleOr || '',
       subtitle: evt.subtitle,
+      subtitleHi: evt.subtitleHi || '',
+      subtitleOr: evt.subtitleOr || '',
       allowAnonymous: evt.allowAnonymous,
       isAcceptingQuestions: evt.isAcceptingQuestions
     });
@@ -443,6 +508,56 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 {creatingEvent ? 'Creating…' : <Plus className="w-4 h-4" />}
               </button>
             </div>
+
+            {/* Optional per-language title/subtitle -- shown to the audience
+                when they've picked that language; falls back to the fields
+                above when left blank. Translate fetches a draft from the
+                English title/subtitle that can be corrected before saving. */}
+            <div className="flex gap-2 items-start">
+              <input
+                type="text"
+                placeholder="Title (Hindi, optional)"
+                value={newEventTitleHi}
+                onChange={(e) => setNewEventTitleHi(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                placeholder="Title (Odia, optional)"
+                value={newEventTitleOr}
+                onChange={(e) => setNewEventTitleOr(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <TranslateButton fieldKey="newEventTitle" sourceText={newEventTitle} setHi={setNewEventTitleHi} setOr={setNewEventTitleOr} />
+            </div>
+            {translateError?.field === 'newEventTitle' && (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+              </p>
+            )}
+            <div className="flex gap-2 items-start">
+              <input
+                type="text"
+                placeholder="Subtitle (Hindi, optional)"
+                value={newEventSubtitleHi}
+                onChange={(e) => setNewEventSubtitleHi(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                placeholder="Subtitle (Odia, optional)"
+                value={newEventSubtitleOr}
+                onChange={(e) => setNewEventSubtitleOr(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <TranslateButton fieldKey="newEventSubtitle" sourceText={newEventSubtitle} setHi={setNewEventSubtitleHi} setOr={setNewEventSubtitleOr} />
+            </div>
+            {translateError?.field === 'newEventSubtitle' && (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+              </p>
+            )}
+
             {createEventError && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
                 <AlertCircle className="w-3.5 h-3.5" /> {createEventError}
@@ -503,6 +618,33 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         placeholder="Title"
                         className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                       />
+                      <div className="flex gap-2 items-start">
+                        <input
+                          type="text"
+                          value={eventEditDraft.titleHi}
+                          onChange={(e) => setEventEditDraft(d => ({ ...d, titleHi: e.target.value }))}
+                          placeholder="Title (Hindi, optional)"
+                          className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={eventEditDraft.titleOr}
+                          onChange={(e) => setEventEditDraft(d => ({ ...d, titleOr: e.target.value }))}
+                          placeholder="Title (Odia, optional)"
+                          className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                        />
+                        <TranslateButton
+                          fieldKey={`eventEdit.${evt.id}.title`}
+                          sourceText={eventEditDraft.title}
+                          setHi={(v) => setEventEditDraft(d => ({ ...d, titleHi: v }))}
+                          setOr={(v) => setEventEditDraft(d => ({ ...d, titleOr: v }))}
+                        />
+                      </div>
+                      {translateError?.field === `eventEdit.${evt.id}.title` && (
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+                        </p>
+                      )}
                       <input
                         type="text"
                         value={eventEditDraft.subtitle}
@@ -510,6 +652,33 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         placeholder="Subtitle"
                         className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                       />
+                      <div className="flex gap-2 items-start">
+                        <input
+                          type="text"
+                          value={eventEditDraft.subtitleHi}
+                          onChange={(e) => setEventEditDraft(d => ({ ...d, subtitleHi: e.target.value }))}
+                          placeholder="Subtitle (Hindi, optional)"
+                          className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={eventEditDraft.subtitleOr}
+                          onChange={(e) => setEventEditDraft(d => ({ ...d, subtitleOr: e.target.value }))}
+                          placeholder="Subtitle (Odia, optional)"
+                          className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                        />
+                        <TranslateButton
+                          fieldKey={`eventEdit.${evt.id}.subtitle`}
+                          sourceText={eventEditDraft.subtitle}
+                          setHi={(v) => setEventEditDraft(d => ({ ...d, subtitleHi: v }))}
+                          setOr={(v) => setEventEditDraft(d => ({ ...d, subtitleOr: v }))}
+                        />
+                      </div>
+                      {translateError?.field === `eventEdit.${evt.id}.subtitle` && (
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+                        </p>
+                      )}
                       <div className="flex items-center gap-4">
                         <label className="flex items-center gap-1.5 text-xs text-secondary">
                           <input
@@ -564,7 +733,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           {/* Add Custom Category */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Add New Topic</h4>
-            <form onSubmit={handleAddCategory} className="space-y-3">
+            <form onSubmit={handleAddCategory} className="space-y-2">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -591,6 +760,33 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
+              {/* Optional per-language names -- shown to the audience's topic
+                  dropdown when they've picked that language; falls back to
+                  the name above when left blank. Translate fetches a draft
+                  from the English name above, which can be corrected before
+                  saving. */}
+              <div className="flex gap-2 items-start">
+                <input
+                  type="text"
+                  placeholder="Hindi name (optional)"
+                  value={newCatNameHi}
+                  onChange={(e) => setNewCatNameHi(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Odia name (optional)"
+                  value={newCatNameOr}
+                  onChange={(e) => setNewCatNameOr(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                />
+                <TranslateButton fieldKey="newCatName" sourceText={newCatName} setHi={setNewCatNameHi} setOr={setNewCatNameOr} />
+              </div>
+              {translateError?.field === 'newCatName' && (
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                  <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+                </p>
+              )}
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {categories.map(c => (
                   <span key={c.id} className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getBadgeColor(c.color)}`}>

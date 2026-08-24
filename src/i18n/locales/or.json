@@ -1,0 +1,67 @@
+{
+  "header": {
+    "audience": "ଦର୍ଶକ",
+    "login": "ଲଗଇନ",
+    "moderator": "ମଡରେଟର",
+    "panel": "ପ୍ୟାନେଲ",
+    "stage": "ଷ୍ଟେଜ",
+    "panelView": "ପ୍ୟାନେଲ ଦୃଶ୍ୟ",
+    "stageView": "ଷ୍ଟେଜ ଦୃଶ୍ୟ",
+    "live": "ଲାଇଭ",
+    "offline": "ଅଫଲାଇନ",
+    "toggleTheme": "ଥିମ ବଦଳାନ୍ତୁ",
+    "resetDemo": "ଡେମୋ ରିସେଟ କରନ୍ତୁ",
+    "signOut": "ସାଇନ ଆଉଟ",
+    "language": "ଭାଷା"
+  },
+  "footer": {
+    "tagline": "ଲାଇଭ ଇଭେଣ୍ଟ ଏବଂ କନଫରେନ୍ସ ପାଇଁ ରିଅଲ-ଟାଇମ୍ ପ୍ରଶ୍ନୋତ୍ତର ପ୍ଲାଟଫର୍ମ।",
+    "features": "ବିଶେଷତା",
+    "featureLiveQna": "ଲାଇଭ ପ୍ରଶ୍ନୋତ୍ତର",
+    "featureRealtime": "ରିଅଲ-ଟାଇମ୍ ଅପଡେଟ୍",
+    "featureModeratorDashboard": "ମଡରେଟର ଡ୍ୟାସବୋର୍ଡ",
+    "featureStageDisplay": "ଷ୍ଟେଜ ଡିସପ୍ଲେ",
+    "info": "ସୂଚନା",
+    "infoBuiltWith": "React ଏବଂ TypeScript ସହିତ ନିର୍ମିତ",
+    "infoSupabase": "Supabase ଦ୍ୱାରା ପରିଚାଳିତ",
+    "infoSse": "ସର୍ଭର-ସେଣ୍ଟ ଇଭେଣ୍ଟ ମାଧ୍ୟମରେ ରିଅଲ-ଟାଇମ୍",
+    "builtWith": "ସହିତ ନିର୍ମିତ",
+    "forLiveEvents": "ଲାଇଭ ଇଭେଣ୍ଟ ପାଇଁ",
+    "copyright": "© {{year}} AudienceQuery. ସମସ୍ତ ଅଧିକାର ସଂରକ୍ଷିତ।"
+  },
+  "login": {
+    "heading": "ସାଇନ ଇନ କରନ୍ତୁ",
+    "subtext": "Supabase ରେ ତୁମ ପାଇଁ ତିଆରି ହୋଇଥିବା ଖାତା ସହିତ ସାଇନ ଇନ କରନ୍ତୁ।",
+    "email": "ଇମେଲ",
+    "password": "ପାସୱାର୍ଡ",
+    "cancel": "ବାତିଲ କରନ୍ତୁ",
+    "signIn": "ସାଇନ ଇନ କରନ୍ତୁ",
+    "signingIn": "ସାଇନ ଇନ ହେଉଛି…",
+    "errorFallback": "ସାଇନ ଇନ କରିବାରେ ଅସମର୍ଥ।",
+    "noAccessError": "ଏହି ଖାତାର ଆପ୍ଲିକେଶନ ପ୍ରବେଶାଧିକାର ନାହିଁ।"
+  },
+  "audience": {
+    "eventCode": "ଇଭେଣ୍ଟ କୋଡ୍:",
+    "askQuestion": "ପ୍ରଶ୍ନ ପଚାରନ୍ତୁ",
+    "askQuestionSubtext": "ଆମ ପ୍ୟାନେଲ ସହିତ ଆପଣଙ୍କର ମତ ବାଣ୍ଟନ୍ତୁ",
+    "noLiveEvent": "ବର୍ତ୍ତମାନ କୌଣସି ଇଭେଣ୍ଟ ଲାଇଭ ନାହିଁ।",
+    "noLiveEventSubtext": "ଏକ ମଡରେଟର ପରବର୍ତ୍ତୀ ଇଭେଣ୍ଟ ଆରମ୍ଭ କଲେ ପ୍ରଶ୍ନ ଦାଖଲ ପୁନଃ ଆରମ୍ଭ ହେବ।",
+    "submitSuccess": "ପ୍ରଶ୍ନ ସଫଳତାର ସହିତ ଦାଖଲ ହେଲା!",
+    "yourQuestion": "ଆପଣଙ୍କର ପ୍ରଶ୍ନ",
+    "questionPlaceholder": "ଆପଣଙ୍କ ମନରେ ଥିବା କଥା ବାଣ୍ଟନ୍ତୁ...",
+    "characterCount_one": "{{count}} ଅକ୍ଷର",
+    "characterCount_other": "{{count}} ଅକ୍ଷର",
+    "askAnonymously": "ଅଜ୍ଞାତ ଭାବରେ ପଚାରନ୍ତୁ",
+    "yourName": "ଆପଣଙ୍କର ନାମ",
+    "namePlaceholder": "ଆପଣଙ୍କର ନାମ ଲେଖନ୍ତୁ",
+    "topicOptional": "ବିଷୟ (ଇଚ୍ଛାଧୀନ)",
+    "selectTopic": "ଏକ ବିଷୟ ବାଛନ୍ତୁ...",
+    "submitQuestion": "ପ୍ରଶ୍ନ ଦାଖଲ କରନ୍ତୁ",
+    "submitErrorFallback": "ପ୍ରଶ୍ନ ଦାଖଲ କରିବାରେ ବିଫଳ। ଦୟାକରି ପୁନଃ ପ୍ରୟାସ କରନ୍ତୁ।",
+    "footerNote": "✨ ଆପଣଙ୍କର ପ୍ରଶ୍ନ ଆମ ମଡରେଟରମାନଙ୍କ ଦ୍ୱାରା ସମୀକ୍ଷା କରାଯିବ ଏବଂ ବଚ୍ଛିତ ହେଲେ ପ୍ରଦର୍ଶିତ ହେବ।"
+  },
+  "loader": {
+    "savingPleaseWait": "ସେଭ ହେଉଛି, ଦୟାକରି ପ୍ରତୀକ୍ଷା କରନ୍ତୁ",
+    "syncing": "ସିଙ୍କ ହେଉଛି…"
+  }
+}

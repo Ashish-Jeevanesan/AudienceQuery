@@ -1,0 +1,67 @@
+{
+  "header": {
+    "audience": "श्रोता",
+    "login": "लॉग इन",
+    "moderator": "मॉडरेटर",
+    "panel": "पैनल",
+    "stage": "स्टेज",
+    "panelView": "पैनल दृश्य",
+    "stageView": "स्टेज दृश्य",
+    "live": "लाइव",
+    "offline": "ऑफ़लाइन",
+    "toggleTheme": "थीम बदलें",
+    "resetDemo": "डेमो रीसेट करें",
+    "signOut": "साइन आउट",
+    "language": "भाषा"
+  },
+  "footer": {
+    "tagline": "लाइव इवेंट्स और सम्मेलनों के लिए रीयल-टाइम प्रश्नोत्तर प्लेटफ़ॉर्म।",
+    "features": "विशेषताएं",
+    "featureLiveQna": "लाइव प्रश्नोत्तर",
+    "featureRealtime": "रीयल-टाइम अपडेट",
+    "featureModeratorDashboard": "मॉडरेटर डैशबोर्ड",
+    "featureStageDisplay": "स्टेज डिस्प्ले",
+    "info": "जानकारी",
+    "infoBuiltWith": "React और TypeScript के साथ निर्मित",
+    "infoSupabase": "Supabase द्वारा संचालित",
+    "infoSse": "सर्वर-सेंट इवेंट्स के माध्यम से रीयल-टाइम",
+    "builtWith": "बनाया गया",
+    "forLiveEvents": "लाइव इवेंट्स के लिए",
+    "copyright": "© {{year}} AudienceQuery. सर्वाधिकार सुरक्षित।"
+  },
+  "login": {
+    "heading": "साइन इन करें",
+    "subtext": "Supabase में आपके लिए बनाए गए खाते से साइन इन करें।",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "cancel": "रद्द करें",
+    "signIn": "साइन इन करें",
+    "signingIn": "साइन इन हो रहा है…",
+    "errorFallback": "साइन इन करने में असमर्थ।",
+    "noAccessError": "इस खाते के पास एप्लिकेशन एक्सेस नहीं है।"
+  },
+  "audience": {
+    "eventCode": "इवेंट कोड:",
+    "askQuestion": "प्रश्न पूछें",
+    "askQuestionSubtext": "हमारे पैनल के साथ अपने विचार साझा करें",
+    "noLiveEvent": "अभी कोई इवेंट लाइव नहीं है।",
+    "noLiveEventSubtext": "मॉडरेटर द्वारा अगला इवेंट शुरू करने पर प्रश्न सबमिट करना फिर से शुरू होगा।",
+    "submitSuccess": "प्रश्न सफलतापूर्वक सबमिट किया गया!",
+    "yourQuestion": "आपका प्रश्न",
+    "questionPlaceholder": "आपके मन में जो है वह साझा करें...",
+    "characterCount_one": "{{count}} अक्षर",
+    "characterCount_other": "{{count}} अक्षर",
+    "askAnonymously": "गुमनाम रूप से पूछें",
+    "yourName": "आपका नाम",
+    "namePlaceholder": "अपना नाम दर्ज करें",
+    "topicOptional": "विषय (वैकल्पिक)",
+    "selectTopic": "एक विषय चुनें...",
+    "submitQuestion": "प्रश्न सबमिट करें",
+    "submitErrorFallback": "प्रश्न सबमिट करने में विफल। कृपया पुनः प्रयास करें।",
+    "footerNote": "✨ आपके प्रश्न की हमारे मॉडरेटर द्वारा समीक्षा की जाएगी और चयनित होने पर इसे प्रदर्शित किया जाएगा।"
+  },
+  "loader": {
+    "savingPleaseWait": "सेव हो रहा है, कृपया प्रतीक्षा करें",
+    "syncing": "सिंक हो रहा है…"
+  }
+}

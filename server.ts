@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
+import { translate } from 'google-translate-api-x';
 import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole } from './src/types.js';
 import { logger } from './src/logger.js';
 
@@ -153,7 +154,11 @@ function mapEventRow(row: any): EventRecord {
   return {
     id: row.id,
     title: row.title,
+    titleHi: row.title_hi || undefined,
+    titleOr: row.title_or || undefined,
     subtitle: row.subtitle,
+    subtitleHi: row.subtitle_hi || undefined,
+    subtitleOr: row.subtitle_or || undefined,
     joinCode: row.join_code,
     allowAnonymous: row.allow_anonymous,
     isAcceptingQuestions: row.is_accepting_questions,
@@ -343,6 +348,8 @@ app.get('/api/state', async (req, res) => {
     const mappedCategories = (categoriesData || []).map((c: any) => ({
       id: c.id,
       name: c.name,
+      nameHi: c.name_hi || undefined,
+      nameOr: c.name_or || undefined,
       color: c.color,
       description: c.description
     }));
@@ -665,7 +672,7 @@ app.delete('/api/questions/:id', requireAdmin, async (req, res) => {
  * Persists to Supabase.
  */
 app.post('/api/categories', requireAdmin, async (req, res) => {
-  const { name, color, description } = req.body;
+  const { name, nameHi, nameOr, color, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
 
   try {
@@ -674,6 +681,8 @@ app.post('/api/categories', requireAdmin, async (req, res) => {
       .from('categories')
       .insert({
         name: name.trim(),
+        name_hi: nameHi?.trim() || null,
+        name_or: nameOr?.trim() || null,
         color: color || 'sky',
         description: description || ''
       })
@@ -686,6 +695,8 @@ app.post('/api/categories', requireAdmin, async (req, res) => {
     const newCat: Category = {
       id: data.id,
       name: data.name,
+      nameHi: data.name_hi || undefined,
+      nameOr: data.name_or || undefined,
       color: data.color,
       description: data.description
     };
@@ -727,7 +738,7 @@ app.get('/api/events', requireAdmin, async (req, res) => {
  * SECURITY: Requires admin or moderator role.
  */
 app.post('/api/events', requireAdmin, async (req, res) => {
-  const { title, subtitle, allowAnonymous, isAcceptingQuestions } = req.body;
+  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Event title is required' });
   }
@@ -748,7 +759,11 @@ app.post('/api/events', requireAdmin, async (req, res) => {
         .from('events')
         .insert({
           title: title.trim(),
+          title_hi: titleHi?.trim() || null,
+          title_or: titleOr?.trim() || null,
           subtitle: subtitle?.trim() || '',
+          subtitle_hi: subtitleHi?.trim() || null,
+          subtitle_or: subtitleOr?.trim() || null,
           join_code: generateJoinCode(),
           allow_anonymous: allowAnonymous ?? true,
           is_accepting_questions: isAcceptingQuestions ?? true,
@@ -782,12 +797,16 @@ app.post('/api/events', requireAdmin, async (req, res) => {
  */
 app.patch('/api/events/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { title, subtitle, allowAnonymous, isAcceptingQuestions } = req.body;
+  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions } = req.body;
 
   try {
     const updateData: any = {};
     if (title !== undefined) updateData.title = title.trim();
+    if (titleHi !== undefined) updateData.title_hi = titleHi?.trim() || null;
+    if (titleOr !== undefined) updateData.title_or = titleOr?.trim() || null;
     if (subtitle !== undefined) updateData.subtitle = subtitle;
+    if (subtitleHi !== undefined) updateData.subtitle_hi = subtitleHi?.trim() || null;
+    if (subtitleOr !== undefined) updateData.subtitle_or = subtitleOr?.trim() || null;
     if (allowAnonymous !== undefined) updateData.allow_anonymous = allowAnonymous;
     if (isAcceptingQuestions !== undefined) updateData.is_accepting_questions = isAcceptingQuestions;
 
@@ -938,6 +957,54 @@ app.patch('/api/users/:id', requireAdminOnly, async (req, res) => {
     console.error('Error updating user in Supabase:', error);
     res.status(500).json({ error: error.message || 'Failed to update user' });
   }
+});
+
+const TRANSLATABLE_TARGETS = ['hi', 'or'] as const;
+type TranslatableTarget = typeof TRANSLATABLE_TARGETS[number];
+
+/**
+ * @route POST /api/translate
+ * @description Translates a short piece of moderator-entered text (a
+ * category name, event title/subtitle) into Hindi and/or Odia, as an
+ * editable draft -- never authoritative, the moderator reviews/corrects
+ * before saving. Uses the free, unofficial `google-translate-api-x`
+ * wrapper (no API key/billing) rather than a paid translation API.
+ * SECURITY: Requires admin or moderator role -- not public, since this
+ * spends the app's own goodwill against Google's rate limits.
+ */
+app.post('/api/translate', requireAdmin, async (req, res) => {
+  const { text, targets } = req.body as { text?: string; targets?: string[] };
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Text to translate is required' });
+  }
+
+  const requestedTargets = (targets || []).filter(
+    (t): t is TranslatableTarget => TRANSLATABLE_TARGETS.includes(t as TranslatableTarget)
+  );
+  if (requestedTargets.length === 0) {
+    return res.status(400).json({ error: 'At least one valid target language (hi, or) is required' });
+  }
+
+  const results: Partial<Record<TranslatableTarget, string>> = {};
+  const errors: Partial<Record<TranslatableTarget, string>> = {};
+
+  // Each target is translated independently -- if Hindi succeeds but Odia
+  // is rate-limited (or vice versa), the caller still gets the one that
+  // worked instead of the whole request failing.
+  await Promise.all(
+    requestedTargets.map(async (target) => {
+      try {
+        const result = await translate(text.trim(), { to: target });
+        results[target] = Array.isArray(result) ? result[0]?.text : result.text;
+      } catch (error: any) {
+        logger.error('Translation failed', { target, error: error?.message });
+        errors[target] = error?.message || 'Translation failed';
+      }
+    })
+  );
+
+  res.json({ ...results, errors: Object.keys(errors).length > 0 ? errors : undefined });
 });
 
 /**

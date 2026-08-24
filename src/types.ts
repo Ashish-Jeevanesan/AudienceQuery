@@ -69,8 +69,12 @@ export interface Question {
 export interface Category {
   /** A unique identifier for the category (e.g., 'cat-1'). */
   id: string;
-  /** The display name of the category (e.g., 'Parenting & Faith'). */
+  /** The canonical display name of the category (e.g., 'Parenting & Faith'). Always present, used as the fallback when a translated name is missing. */
   name: string;
+  /** Hindi translation of the name, entered by a moderator. Falls back to `name` when absent. */
+  nameHi?: string;
+  /** Odia translation of the name, entered by a moderator. Falls back to `name` when absent. */
+  nameOr?: string;
   /** A color name (e.g., from Tailwind CSS) used for theming. */
   color: string;
   /** A short description of the category's topic. */
@@ -85,10 +89,18 @@ export interface Category {
 export interface ConferenceEvent {
   /** The unique identifier of this event. */
   id: string;
-  /** The main title of the event. */
+  /** The canonical (English) title of the event. Always present, used as the fallback when a translated title is missing. */
   title: string;
+  /** Hindi translation of the title, optional; falls back to `title` when absent. */
+  titleHi?: string;
+  /** Odia translation of the title, optional; falls back to `title` when absent. */
+  titleOr?: string;
   /** A subtitle for the event or the specific session. */
   subtitle: string;
+  /** Hindi translation of the subtitle, optional; falls back to `subtitle` when absent. */
+  subtitleHi?: string;
+  /** Odia translation of the subtitle, optional; falls back to `subtitle` when absent. */
+  subtitleOr?: string;
   /** A short, memorable code for joining the event Q&A. */
   joinCode: string;
   /** If true, users can submit questions anonymously. */
