@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-27] - Going Mobile, Screen 5: Logs Page — Pass Complete
+
+- **Fixed a log line rendering 4,337px tall on a 390px phone.** Ordinary INFO-level logs (e.g. `Questions fetched from database`) embed their payload as whitespace-free JSON; the log viewer wrapped messages with `break-all`, which — once the level badge and timestamp ate most of a mobile row's width — forced a several-hundred-character blob into hundreds of stacked single-word lines. With auto-refresh and auto-scroll both on by default, this meant a moderator checking logs from their phone could land mid-wall-of-text on every 5-second refresh instead of at the actual latest entry. Fixed by switching each log message to a horizontally-scrolling single line (the same convention a terminal or browser DevTools console uses) instead of vertical wrapping: ordinary short messages look identical, and only the rare giant-JSON line gets its own scrollbar instead of destroying the page.
+- **Bumped the Logs page's header controls to the 40px tap-target standard** — the back button, all 3 action icons (auto-scroll, pause/resume, refresh), the search box, and the level filter were all 30–32px.
+- **This closes out the "Going Mobile" responsiveness pass.** All 5 screens (Audience/Header, Panel, Moderator, Stage, Logs) have been audited and fixed at real mobile viewport widths.
+
 ## [2026-08-27] - Going Mobile, Screen 4: Stage Display
 
 - **Lightest audit of the whole pass — Stage was already built with small screens in mind.** Tested at a genuine 390px viewport with a real "Now Answering" question and a queued item: the header, QR/join-code banner, question spotlight card, "Up Next" ticker, and both empty states all fit cleanly with zero horizontal overflow at any scroll position. No redesign needed.

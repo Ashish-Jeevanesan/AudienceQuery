@@ -222,24 +222,24 @@ export const LogsPage: React.FC = () => {
     <div className="min-h-screen text-primary font-sans">
       <header className="sticky top-0 z-10 bg-surface border-b border-divider px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/" className="p-2 rounded-lg hover:bg-surface-hover text-secondary" title="Back to app"><ArrowLeft className="w-4 h-4" /></Link>
+          <Link to="/" className="p-3 rounded-lg hover:bg-surface-hover text-secondary" title="Back to app"><ArrowLeft className="w-4 h-4" /></Link>
           <h1 className="text-base font-bold text-primary">Application Logs</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search logs…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500 w-44"
+              className="pl-8 pr-3 py-3 rounded-lg border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500 w-44"
             />
           </div>
           <select
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value as any)}
-            className="px-2.5 py-1.5 rounded-lg border border-divider text-xs text-secondary bg-surface outline-none"
+            className="px-2.5 py-3 rounded-lg border border-divider text-xs text-secondary bg-surface outline-none"
           >
             <option value="all">All levels</option>
             <option value="ERROR">Error</option>
@@ -250,14 +250,14 @@ export const LogsPage: React.FC = () => {
           <button
             onClick={() => setAutoScroll(v => !v)}
             title={autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
-            className={`p-2 rounded-lg border transition ${autoScroll ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface-secondary text-secondary border-divider hover:bg-surface-hover'}`}
+            className={`p-3 rounded-lg border transition ${autoScroll ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface-secondary text-secondary border-divider hover:bg-surface-hover'}`}
           >
             <ArrowDownToLine className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setAutoRefresh(v => !v)}
             title={autoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh'}
-            className="p-2 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+            className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
           >
             {autoRefresh ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
           </button>
@@ -265,7 +265,7 @@ export const LogsPage: React.FC = () => {
             onClick={fetchLogs}
             disabled={loading}
             title="Refresh now"
-            className="p-2 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition disabled:opacity-60"
+            className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition disabled:opacity-60"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -301,7 +301,7 @@ export const LogsPage: React.FC = () => {
                         {formatLocalTimestamp(entry.timestamp)}
                       </span>
                     )}
-                    <span className={`break-all ${LEVEL_STYLES[entry.level]}`}>{entry.message}</span>
+                    <div className={`flex-1 min-w-0 overflow-x-auto whitespace-pre ${LEVEL_STYLES[entry.level]}`}>{entry.message}</div>
                   </div>
                 ))}
               </div>
