@@ -78,8 +78,13 @@ export const Header: React.FC<HeaderProps> = ({
       <header className="sticky top-0 z-40 bg-surface border-b border-divider">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* ============== DESKTOP / TABLET (md and up): unchanged single-row header ============== */}
-          <div className="hidden md:flex items-center justify-between h-20 gap-4">
+          {/* ============== DESKTOP / TABLET (lg and up): unchanged single-row header ==============
+              Switches at lg: (1024px), not md: (768px) -- the row of logo + 4 tabs + Live pill +
+              language switcher + theme/reset/logout icons needs ~888px to fit without wrapping, so
+              anything narrower (most tablets in portrait, e.g. a 768px iPad Mini) got a header that
+              overflowed sideways at md:. The mobile bottom-nav/overflow-menu pattern below already
+              handles this width range fine, so widening its range was the fix. */}
+          <div className="hidden lg:flex items-center justify-between h-20 gap-4">
             {/* LEFT: Logo & Branding */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
               <div style={{
@@ -200,8 +205,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* ============== MOBILE (below md): condensed bar + overflow menu ============== */}
-          <div className="flex md:hidden items-center justify-between h-16 gap-3 relative">
+          {/* ============== MOBILE (below lg): condensed bar + overflow menu ============== */}
+          <div className="flex lg:hidden items-center justify-between h-16 gap-3 relative">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div style={{
                 backgroundColor: `rgb(var(--primary))`,
@@ -302,7 +307,7 @@ export const Header: React.FC<HeaderProps> = ({
           fixed bar cover the last ~64px of the Footer on a long page. */}
       {canSwitchViews && (
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-divider flex"
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-divider flex"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {BOTTOM_NAV_ITEMS.map(item => {

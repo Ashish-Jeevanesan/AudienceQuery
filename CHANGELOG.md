@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-25] - Going Mobile, Screen 2: Panel View + Shared Header Breakpoint Fix
+
+- **Panel view itself needed almost no changes** — it already had responsive breakpoints from the start. Verified live at 390px with real pushed/priority/answered questions: the "Now Answering Live" spotlight card, queue cards, and answered-history list all render cleanly with no overflow.
+- **Fixed a shared header bug affecting every screen, not just Panel**: the header switched from the mobile bottom-nav layout to the full desktop row at Tailwind's `md:` breakpoint (768px), but the desktop row (logo, 4 tabs, Live pill, language switcher, theme/reset/logout icons) needed ~888px to actually fit — so any tablet in the 768–890px range (including a stock iPad Mini in portrait) got a header that overflowed sideways. Moved the switch point from `md:` (768px) to `lg:` (1024px) in `Header.tsx` and its matching bottom-nav spacer in `App.tsx`; the mobile bottom-nav/overflow-menu pattern already handled this width range fine, so widening it was the fix rather than new design work.
+  - Caught because a testing-methodology bug from the Screen 1 pass was fixed: the injected-iframe technique used to test real viewport widths sets a CSS width, but the iframe's own scrollbar eats ~15-17px of it — a "768px" iframe was actually rendering a 749px viewport, so the desktop header's real behavior at exactly 768px was never actually checked in Screen 1's verification.
+- **Panel's topic-filter dropdown bumped from 32px to 44px tall**, meeting the 40px minimum tap target this responsiveness pass has held to since Screen 1.
+
 ## [2026-08-24] - Going Mobile, Screen 1: Header, Audience View & Bottom Nav
 
 - **Instagram-style bottom nav bar replaces the old single-row header on mobile.** Below the `md` breakpoint, the header collapses to just the logo, event title, and a "⋯" overflow menu; admin/moderator role-switching moves to a fixed bottom bar (Audience/Moderator/Panel/Stage, icon + label + badge counts), which only renders for accounts with more than one screen to switch between — panelist/stage locked-role accounts see no switcher at all, same as before. Desktop/tablet (`md:` and up) keeps the original header markup completely unchanged.

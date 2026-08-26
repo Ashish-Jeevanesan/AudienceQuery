@@ -194,7 +194,7 @@ export const PanelView: React.FC<PanelViewProps> = ({
             <select
               value={selectedCatId}
               onChange={(e) => setSelectedCatId(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-surface border border-divider text-xs text-secondary font-medium outline-none"
+              className="px-3 py-3 rounded-xl bg-surface border border-divider text-xs text-secondary font-medium outline-none"
             >
               <option value="all">All Topics</option>
               {categories.map(c => (
