@@ -6,7 +6,7 @@
  * panel queue. It also manages event-wide configuration settings and category definitions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
 import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2 } from 'lucide-react';
 
@@ -76,15 +76,33 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [editIsPriority, setEditIsPriority] = useState(false);
   const [editError, setEditError] = useState('');
 
-  // Categories drawer state (toggles visibility of the "Manage Categories" card)
-  const [showCategories, setShowCategories] = useState(false);
+  // Manage Events/Categories/Users drawers are mutually exclusive (accordion) --
+  // opening one closes whichever was already open, so there's never more than
+  // one to lose track of. Opening a drawer also smooth-scrolls it into view.
+  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | null>(null);
+  const showEvents = openDrawer === 'events';
+  const showCategories = openDrawer === 'categories';
+  const showUsers = openDrawer === 'users';
+  const toggleDrawer = (drawer: 'events' | 'categories' | 'users') => {
+    setOpenDrawer(prev => (prev === drawer ? null : drawer));
+  };
+  const closeDrawer = () => setOpenDrawer(null);
+
+  const eventsDrawerRef = useRef<HTMLDivElement>(null);
+  const categoriesDrawerRef = useRef<HTMLDivElement>(null);
+  const usersDrawerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : null;
+    ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openDrawer]);
+
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameHi, setNewCatNameHi] = useState('');
   const [newCatNameOr, setNewCatNameOr] = useState('');
   const [newCatColor, setNewCatColor] = useState('indigo');
 
   // Events drawer state
-  const [showEvents, setShowEvents] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventTitleHi, setNewEventTitleHi] = useState('');
   const [newEventTitleOr, setNewEventTitleOr] = useState('');
@@ -142,7 +160,6 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   );
 
   // Users drawer state (admin only)
-  const [showUsers, setShowUsers] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [userEditDraft, setUserEditDraft] = useState<{ role: UserRole; username: string }>({ role: 'panelist', username: '' });
   const [userEditError, setUserEditError] = useState('');
@@ -392,7 +409,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </button>
 
           <button
-            onClick={() => setShowEvents(!showEvents)}
+            onClick={() => toggleDrawer('events')}
             className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
           >
             <CalendarDays className="w-4 h-4" />
@@ -400,7 +417,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </button>
 
           <button
-            onClick={() => setShowCategories(!showCategories)}
+            onClick={() => toggleDrawer('categories')}
             className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
           >
             <Settings className="w-4 h-4" />
@@ -409,7 +426,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
           {isAdmin && (
             <button
-              onClick={() => setShowUsers(!showUsers)}
+              onClick={() => toggleDrawer('users')}
               className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
             >
               <Users2 className="w-4 h-4" />
@@ -464,13 +481,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Manage Events Drawer */}
       {showEvents && (
-        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn">
+        <div ref={eventsDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn scroll-mt-24">
           <div className="flex items-center justify-between border-b border-divider pb-3">
             <h3 className="font-bold text-primary text-base flex items-center space-x-2">
               <CalendarDays className="w-5 h-5 text-indigo-600" />
               <span>Manage Events</span>
             </h3>
-            <button onClick={() => setShowEvents(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
           </div>
 
           {/* Create Event */}
@@ -721,13 +738,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Manage Categories Drawer */}
       {showCategories && (
-        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn">
+        <div ref={categoriesDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-5 animate-fadeIn scroll-mt-24">
           <div className="flex items-center justify-between border-b border-divider pb-3">
             <h3 className="font-bold text-primary text-base flex items-center space-x-2">
               <Settings className="w-5 h-5 text-indigo-600" />
               <span>Manage Categories</span>
             </h3>
-            <button onClick={() => setShowCategories(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
           </div>
 
           {/* Add Custom Category */}
@@ -801,13 +818,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
       {/* Manage Users Drawer (admin only) */}
       {isAdmin && showUsers && (
-        <div className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn">
+        <div ref={usersDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn scroll-mt-24">
           <div className="flex items-center justify-between border-b border-divider pb-3">
             <h3 className="font-bold text-primary text-base flex items-center space-x-2">
               <Users2 className="w-5 h-5 text-indigo-600" />
               <span>Manage Users</span>
             </h3>
-            <button onClick={() => setShowUsers(false)} className="text-muted hover:text-secondary font-bold">✕</button>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
           </div>
 
           {users.length === 0 ? (

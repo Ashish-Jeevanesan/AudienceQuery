@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-27] - Moderator Drawers: Accordion + Smooth Scroll-Into-View
+
+- **"Manage Events/Categories/Users" are now mutually exclusive (accordion).** Previously each was an independent toggle, so opening several in turn left them all stacked open — closing one left the others sitting there with no clear way to tell what was still open. Opening any one now automatically closes whichever was already open.
+- **Opening a drawer now smooth-scrolls it into view.** Previously the drawer just appeared wherever it happened to render (usually above the current scroll position), so it was easy to miss entirely if you weren't already looking at the top of the page. Each drawer now scrolls itself into view on open, clearing the sticky header.
+
 ## [2026-08-27] - Going Mobile, Screen 5: Logs Page — Pass Complete
 
 - **Fixed a log line rendering 4,337px tall on a 390px phone.** Ordinary INFO-level logs (e.g. `Questions fetched from database`) embed their payload as whitespace-free JSON; the log viewer wrapped messages with `break-all`, which — once the level badge and timestamp ate most of a mobile row's width — forced a several-hundred-character blob into hundreds of stacked single-word lines. With auto-refresh and auto-scroll both on by default, this meant a moderator checking logs from their phone could land mid-wall-of-text on every 5-second refresh instead of at the actual latest entry. Fixed by switching each log message to a horizontally-scrolling single line (the same convention a terminal or browser DevTools console uses) instead of vertical wrapping: ordinary short messages look identical, and only the rare giant-JSON line gets its own scrollbar instead of destroying the page.
