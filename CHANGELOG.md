@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-27] - Going Mobile, Screen 3: Moderator Dashboard
+
+- **Fixed two controls that were completely unreachable on mobile, not just cramped.** The Moderator dashboard's search/filter bar packs three dropdowns (event, topic, sort) into one non-wrapping, right-aligned row — on a 390px phone the row didn't fit, so the browser pushed the overflow off the *start* edge rather than wrapping it: the event filter rendered 117px to the left of the viewport, with no way to tap it. Fixed by letting the row wrap below `sm:` instead of forcing one line.
+- **Fixed the same failure mode, in reverse, in five places.** Every optional Hindi/Odia translation field pair (event title, event subtitle, category name — in both the create forms and the per-event edit form) laid out as two text inputs plus a Translate button in one non-wrapping row; on mobile this pushed the Translate button off the *right* edge, making it unreachable in all five spots. Fixed the same way: stack vertically below `sm:`, one row from `sm:` up. This also removed a page-level horizontal scrollbar the overflow was causing.
+- **Added a scroll-affordance fade to the status tabs row** (Review Inbox / Panel Queue / Public Feed / etc.) — it was already horizontally scrollable on mobile, just with no visual hint that there was more to swipe to. A soft trailing-edge fade (mobile only) now signals it.
+- **Bumped 7 icon-only buttons from ~26–34px to 40–42px** (the question card's Star/Edit/Approve/Reject/Delete actions, plus the event-list and user-list inline edit buttons), meeting the 40px tap-target minimum this pass has held to since Screen 1.
+- Sign-in modal, Edit Question modal, the metrics grid, and the question cards' own layout were all already solid at 390px — no changes needed there.
+
 ## [2026-08-25] - Going Mobile, Screen 2: Panel View + Shared Header Breakpoint Fix
 
 - **Panel view itself needed almost no changes** — it already had responsive breakpoints from the start. Verified live at 390px with real pushed/priority/answered questions: the "Now Answering Live" spotlight card, queue cards, and answered-history list all render cleanly with no overflow.

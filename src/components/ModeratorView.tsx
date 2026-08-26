@@ -513,7 +513,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 when they've picked that language; falls back to the fields
                 above when left blank. Translate fetches a draft from the
                 English title/subtitle that can be corrected before saving. */}
-            <div className="flex gap-2 items-start">
+            <div className="flex flex-col sm:flex-row gap-2 items-start">
               <input
                 type="text"
                 placeholder="Title (Hindi, optional)"
@@ -535,7 +535,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
               </p>
             )}
-            <div className="flex gap-2 items-start">
+            <div className="flex flex-col sm:flex-row gap-2 items-start">
               <input
                 type="text"
                 placeholder="Subtitle (Hindi, optional)"
@@ -601,7 +601,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       )}
                       <button
                         onClick={() => openEventEdit(evt)}
-                        className="p-1.5 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+                        className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
                         title="Edit event"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -618,7 +618,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         placeholder="Title"
                         className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                       />
-                      <div className="flex gap-2 items-start">
+                      <div className="flex flex-col sm:flex-row gap-2 items-start">
                         <input
                           type="text"
                           value={eventEditDraft.titleHi}
@@ -652,7 +652,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         placeholder="Subtitle"
                         className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                       />
-                      <div className="flex gap-2 items-start">
+                      <div className="flex flex-col sm:flex-row gap-2 items-start">
                         <input
                           type="text"
                           value={eventEditDraft.subtitleHi}
@@ -765,7 +765,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   the name above when left blank. Translate fetches a draft
                   from the English name above, which can be corrected before
                   saving. */}
-              <div className="flex gap-2 items-start">
+              <div className="flex flex-col sm:flex-row gap-2 items-start">
                 <input
                   type="text"
                   placeholder="Hindi name (optional)"
@@ -825,7 +825,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-bold cat-badge-indigo capitalize">{u.role}</span>
                       <button
                         onClick={() => openUserEdit(u)}
-                        className="p-1.5 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+                        className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
                         title="Edit user"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -874,8 +874,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       {/* Filter and Tab Bar */}
       <div className="bg-surface rounded-2xl p-4 border border-divider shadow-sm space-y-4">
 
-        {/* Primary Status Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none border-b border-divider">
+        {/* Primary Status Tabs -- the row itself scrolls horizontally when it
+            doesn't fit (deliberate), but nothing else hints that on a phone,
+            so a soft fade on the trailing edge (mobile only) signals there's
+            more to swipe to. */}
+        <div className="relative">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none border-b border-divider">
           <button
             onClick={() => setActiveTab('pending')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
@@ -945,6 +949,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           >
             <span>All ({questions.length})</span>
           </button>
+          </div>
+          <div className="sm:hidden pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-surface to-transparent" />
         </div>
 
         {/* Search, Category & Sorting Filters */}
@@ -961,7 +967,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
             <select
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
@@ -1109,7 +1115,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {/* Toggle Priority Star */}
                     <button
                       onClick={() => onEditQuestion(q.id, { isPriority: !q.isPriority }).catch(() => {})}
-                      className={`p-2 rounded-xl border text-xs font-semibold transition ${
+                      className={`p-3 rounded-xl border text-xs font-semibold transition ${
                         q.isPriority
                           ? 'bg-amber-100 text-amber-800 border-amber-300'
                           : 'bg-surface-secondary text-secondary border-divider hover:bg-surface-hover'
@@ -1122,7 +1128,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {/* Edit Details Button */}
                     <button
                       onClick={() => openEditModal(q)}
-                      className="p-2 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+                      className="p-3 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
                       title="Edit text / category / notes"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -1132,7 +1138,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {q.status === 'pending' && (
                       <button
                         onClick={() => onUpdateStatus(q.id, 'approved')}
-                        className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
+                        className="p-3 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
                         title="Approve for public feed"
                       >
                         <CheckCircle className="w-4 h-4" />
@@ -1142,7 +1148,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {q.status !== 'rejected' ? (
                       <button
                         onClick={() => onUpdateStatus(q.id, 'rejected')}
-                        className="p-2 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition"
+                        className="p-3 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition"
                         title="Reject question"
                       >
                         <XCircle className="w-4 h-4" />
@@ -1159,7 +1165,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     {/* Delete */}
                     <button
                       onClick={() => onDeleteQuestion(q.id)}
-                      className="p-2 rounded-xl bg-surface-secondary text-muted hover:text-rose-600 hover:bg-rose-50 border border-divider transition"
+                      className="p-3 rounded-xl bg-surface-secondary text-muted hover:text-rose-600 hover:bg-rose-50 border border-divider transition"
                       title="Delete permanently"
                     >
                       <Trash2 className="w-4 h-4" />
