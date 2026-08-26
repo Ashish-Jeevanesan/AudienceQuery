@@ -104,7 +104,7 @@ export const StageView: React.FC<StageViewProps> = ({
           {/* Display Controls */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition shrink-0"
+            className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition shrink-0"
             title="Toggle Fullscreen Presentation"
           >
             <Maximize2 className="w-4 h-4" />

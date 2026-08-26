@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-27] - Going Mobile, Screen 4: Stage Display
+
+- **Lightest audit of the whole pass — Stage was already built with small screens in mind.** Tested at a genuine 390px viewport with a real "Now Answering" question and a queued item: the header, QR/join-code banner, question spotlight card, "Up Next" ticker, and both empty states all fit cleanly with zero horizontal overflow at any scroll position. No redesign needed.
+- **Bumped the fullscreen-toggle button from 32px to 40px**, the one thing that didn't already meet the tap-target standard this pass has held to since Screen 1.
+
 ## [2026-08-27] - Going Mobile, Screen 3: Moderator Dashboard
 
 - **Fixed two controls that were completely unreachable on mobile, not just cramped.** The Moderator dashboard's search/filter bar packs three dropdowns (event, topic, sort) into one non-wrapping, right-aligned row — on a 390px phone the row didn't fit, so the browser pushed the overflow off the *start* edge rather than wrapping it: the event filter rendered 117px to the left of the viewport, with no way to tap it. Fixed by letting the row wrap below `sm:` instead of forcing one line.
