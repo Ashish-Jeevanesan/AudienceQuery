@@ -8,9 +8,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useRealTimeQnA } from './useRealTimeQnA';
 import { Header } from './components/Header';
 import { AudienceView } from './components/AudienceView';
+import { EventPicker } from './components/EventPicker';
 import { Footer } from './components/Footer';
 import { ModeratorView } from './components/ModeratorView';
 import { PanelView } from './components/PanelView';
@@ -29,6 +31,12 @@ import { getLocalizedText } from './i18n/localizedContent';
  */
 export default function App() {
   const { t, i18n } = useTranslation();
+  // Multi-Event Mode: which event this view is showing, from the
+  // /e/:joinCode route -- undefined at a bare `/` visit with nothing
+  // selected yet.
+  const { joinCode } = useParams<{ joinCode?: string }>();
+  const navigate = useNavigate();
+  const selectEvent = (code: string) => navigate(`/e/${code}`);
   // The signed-in user's application identity/role, resolved via /api/me.
   // null means either logged out, or logged in with no application role.
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -77,6 +85,7 @@ export default function App() {
     questions,
     categories,
     conferenceEvent,
+    openEvents,
     events,
     users,
     isConnected,
@@ -93,12 +102,11 @@ export default function App() {
     fetchEvents,
     createEvent,
     updateEventById,
-    activateEvent,
     fetchUsers,
     updateUser,
     translateText,
     resetDemoData
-  } = useRealTimeQnA();
+  } = useRealTimeQnA(joinCode);
 
   // Counts for different question statuses to show in the header badges.
   const pendingCount = questions.filter(q => q.status === 'pending').length;
@@ -111,11 +119,17 @@ export default function App() {
   const canViewPanel = canViewModerator || currentUser?.role === 'panelist';
   const canViewStage = canViewModerator || currentUser?.role === 'stage';
 
-  // Panel/Stage only ever show questions belonging to the currently live
-  // event; the Moderator view still gets the full unfiltered list.
+  // Panel/Stage only ever show questions belonging to the currently
+  // selected event; the Moderator view still gets the full unfiltered list.
   const liveQuestions = conferenceEvent.id
     ? questions.filter(q => q.eventId === conferenceEvent.id)
     : [];
+
+  // Multi-Event Mode: every view except Moderator needs a specific event
+  // selected before it can show anything -- there's no more implicit "the
+  // live event" to fall back to. Moderator ignores this entirely; it shows
+  // an overview across every event regardless of the URL.
+  const needsEventSelection = activeRole !== 'moderator' && !conferenceEvent.id;
 
   const handleLogin = () => {
     setLoginError('');
@@ -176,61 +190,87 @@ export default function App() {
         currentUser={currentUser}
         onLogin={handleLogin}
         onLogout={handleLogout}
+        openEvents={openEvents}
+        currentJoinCode={joinCode}
+        onSelectEvent={selectEvent}
       />
 
       {/* Main View Container - Renders the view based on the active role */}
       <main className="transition-all duration-200">
-        {activeRole === 'audience' && (
-          <AudienceView
-            questions={questions}
-            categories={categories}
-            conferenceEvent={conferenceEvent}
-            onSubmit={submitQuestion}
-            sessionId={sessionId}
-            mySubmittedIds={mySubmittedIds}
-          />
-        )}
+        {/* Multi-Event Mode: Audience/Panel/Stage all need a specific event
+            selected first -- shown here instead of whichever view was
+            requested, until one is picked. Moderator never hits this. */}
+        {needsEventSelection ? (
+          <div className="min-h-[60vh] flex items-center justify-center p-6">
+            <div className="w-full max-w-sm text-center space-y-4">
+              <h2 className="text-xl font-bold text-primary">{t('eventPicker.title')}</h2>
+              <p className="text-sm text-secondary">{t('eventPicker.subtitle')}</p>
+              {openEvents.length > 0 ? (
+                <EventPicker
+                  openEvents={openEvents}
+                  currentJoinCode={joinCode}
+                  onSelect={selectEvent}
+                  variant="full"
+                />
+              ) : (
+                <p className="text-sm text-muted italic">{t('eventPicker.noneOpen')}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeRole === 'audience' && (
+              <AudienceView
+                questions={questions}
+                categories={categories}
+                conferenceEvent={conferenceEvent}
+                onSubmit={submitQuestion}
+                sessionId={sessionId}
+                mySubmittedIds={mySubmittedIds}
+              />
+            )}
 
-        {/* Moderator view - admin or moderator role required */}
-        {canViewModerator && activeRole === 'moderator' && (
-          <ModeratorView
-            questions={questions}
-            categories={categories}
-            conferenceEvent={conferenceEvent}
-            events={events}
-            users={users}
-            isAdmin={currentUser?.role === 'admin'}
-            onUpdateStatus={updateStatus}
-            onEditQuestion={editQuestion}
-            onDeleteQuestion={deleteQuestion}
-            onCreateCategory={createCategory}
-            onFetchEvents={fetchEvents}
-            onCreateEvent={createEvent}
-            onUpdateEvent={updateEventById}
-            onActivateEvent={activateEvent}
-            onFetchUsers={fetchUsers}
-            onUpdateUser={updateUser}
-            onTranslateText={translateText}
-          />
-        )}
+            {/* Moderator view - admin or moderator role required */}
+            {canViewModerator && activeRole === 'moderator' && (
+              <ModeratorView
+                questions={questions}
+                categories={categories}
+                conferenceEvent={conferenceEvent}
+                events={events}
+                users={users}
+                isAdmin={currentUser?.role === 'admin'}
+                onUpdateStatus={updateStatus}
+                onEditQuestion={editQuestion}
+                onDeleteQuestion={deleteQuestion}
+                onCreateCategory={createCategory}
+                onFetchEvents={fetchEvents}
+                onCreateEvent={createEvent}
+                onUpdateEvent={updateEventById}
+                onFetchUsers={fetchUsers}
+                onUpdateUser={updateUser}
+                onTranslateText={translateText}
+              />
+            )}
 
-        {/* Panel view - admin, moderator, or panelist role required */}
-        {canViewPanel && activeRole === 'panel' && (
-          <PanelView
-            questions={liveQuestions}
-            categories={categories}
-            conferenceEvent={conferenceEvent}
-            onUpdateStatus={updateStatus}
-          />
-        )}
+            {/* Panel view - admin, moderator, or panelist role required */}
+            {canViewPanel && activeRole === 'panel' && (
+              <PanelView
+                questions={liveQuestions}
+                categories={categories}
+                conferenceEvent={conferenceEvent}
+                onUpdateStatus={updateStatus}
+              />
+            )}
 
-        {/* Stage view - admin, moderator, or stage role required */}
-        {canViewStage && activeRole === 'stage' && (
-          <StageView
-            questions={liveQuestions}
-            categories={categories}
-            conferenceEvent={conferenceEvent}
-          />
+            {/* Stage view - admin, moderator, or stage role required */}
+            {canViewStage && activeRole === 'stage' && (
+              <StageView
+                questions={liveQuestions}
+                categories={categories}
+                conferenceEvent={conferenceEvent}
+              />
+            )}
+          </>
         )}
       </main>
       <Footer isAdmin={currentUser?.role === 'admin'} />

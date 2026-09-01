@@ -24,10 +24,13 @@ export const StageView: React.FC<StageViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [elapsedSecs, setElapsedSecs] = useState(0);
 
-  // The app has no per-role URL routing -- a fresh visit to the site's
-  // root always lands on the audience/question-submission view, so that's
-  // exactly what the stage QR code should point at.
-  const joinUrl = window.location.origin;
+  // Multi-Event Mode: point straight at this specific event's join link
+  // (/e/:joinCode) rather than the bare site root -- a bare visit would
+  // otherwise land an attendee on the "pick an event" dropdown instead of
+  // straight into this event's question form.
+  const joinUrl = conferenceEvent.joinCode
+    ? `${window.location.origin}/e/${conferenceEvent.joinCode}`
+    : window.location.origin;
 
   // Active Answering Question
   const currentAnswering = questions.find(q => q.status === 'answering');

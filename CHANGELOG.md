@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-31] - Multi-Event Mode: Join-Code Routing Replaces the Single "Live Event" Singleton
+
+*Implemented and verified working end-to-end; not yet committed to `main` as of this writing — sitting in the working tree pending final review.*
+
+- **Retired the single-`is_live`-event model.** Until now exactly one event could be live at a time (a partial unique index plus an atomic `activate_event()` function), and every visitor landed on whichever event held that flag — making it impossible to run two concurrent groups side by side. Any number of events can now be `is_accepting_questions = true` at once, each independently reachable via its own `/e/:joinCode` link. Migration drops `is_live`, `one_live_event`, and `activate_event()`; `getLiveEvent()` is replaced server-side by `getEventByJoinCode()`.
+- **New public `GET /api/events/open` endpoint** powers a "pick an event" dropdown — every event currently accepting questions, in a narrow public-safe shape (no join codes beyond the one being offered, no admin-only fields). Excludes expired events even if still manually marked accepting.
+- **Event dropdown now lives in the Header on Audience, Panel, and Stage — always, not just when nothing's picked yet.** Previously an event, once selected, was locked in for the session; now switching events is one click away from any of those three screens. Moderator is the one exception: it never shows the dropdown, since it already gets every event unfiltered in its own dashboard (its "event filter" lists all of them, expired included).
+- **Event expiry**: new optional `events.expires_at`. Once past, an event drops out of the public dropdown and rejects new submissions (`"This event has ended..."`), independent of its manual accepting-questions toggle — but stays fully visible, with all its questions, in Moderator.
+- **`POST /api/questions` now takes `eventJoinCode` from the client** instead of implicitly targeting whatever was live; each event's own `is_accepting_questions`/expiry is the only gate, enforced server-side (not just hidden in the UI).
+- **Verified directly against the live Supabase project** (`aq-live-v1`): `GET /api/events/open` returns real event data post-migration, `GET /api/state?event=<code>` correctly resolves a join code to its event (including `isExpired`) with its real questions/categories, and `npx tsc --noEmit` passes clean. Also surfaced and fixed a live production bug in the process: the previously-committed `server.ts` was still querying the already-dropped `is_live` column, so `/api/state` was broken against the current database until this change landed.
+
 ## [2026-08-27] - Moderator Drawers: Accordion + Smooth Scroll-Into-View
 
 - **"Manage Events/Categories/Users" are now mutually exclusive (accordion).** Previously each was an independent toggle, so opening several in turn left them all stacked open — closing one left the others sitting there with no clear way to tell what was still open. Opening any one now automatically closes whichever was already open.

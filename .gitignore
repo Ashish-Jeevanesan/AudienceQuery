@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local agent tool state / secrets — not project source
+.cog/
+.gemini/
+neon_db_creds.txt

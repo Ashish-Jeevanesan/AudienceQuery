@@ -12,6 +12,22 @@ import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, S
 
 const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
 
+/** Converts an ISO timestamp to the local-time value a `datetime-local` input expects ("YYYY-MM-DDTHH:mm"). */
+function toDatetimeLocalValue(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Converts a `datetime-local` input's local-time value back to an ISO timestamp, or undefined if empty. */
+function fromDatetimeLocalValue(value: string): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 /**
  * Props for the ModeratorView component.
  */
@@ -27,9 +43,8 @@ interface ModeratorViewProps {
   onDeleteQuestion: (questionId: string) => void;
   onCreateCategory: (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => void;
   onFetchEvents: () => void;
-  onCreateEvent: (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
-  onUpdateEvent: (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => Promise<void>;
-  onActivateEvent: (id: string) => Promise<void>;
+  onCreateEvent: (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => Promise<void>;
+  onUpdateEvent: (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => Promise<void>;
   onFetchUsers: () => void;
   onUpdateUser: (id: string, data: { role?: string; username?: string }) => Promise<void>;
   onTranslateText: (text: string, targets: ('hi' | 'or')[]) => Promise<Partial<Record<'hi' | 'or', string>>>;
@@ -54,7 +69,6 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onFetchEvents,
   onCreateEvent,
   onUpdateEvent,
-  onActivateEvent,
   onFetchUsers,
   onUpdateUser,
   onTranslateText
@@ -63,9 +77,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  // 'all' = every event's questions, 'live' = only the currently live
-  // event, or a specific event id to review one past event in isolation.
-  const [eventFilter, setEventFilter] = useState<'all' | 'live' | string>('all');
+  // 'all' = every event's questions, or a specific event id to review one
+  // event in isolation. Multi-Event Mode: any number of events can be
+  // concurrently open, so there's no more special "live" shorthand -- just
+  // pick the one you want by name.
+  const [eventFilter, setEventFilter] = useState<'all' | string>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'priority'>('recent');
 
   // Edit Modal State for editing a specific question
@@ -110,14 +126,19 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [newEventSubtitleHi, setNewEventSubtitleHi] = useState('');
   const [newEventSubtitleOr, setNewEventSubtitleOr] = useState('');
   const [newEventAllowAnonymous, setNewEventAllowAnonymous] = useState(true);
+  // Optional end date/time, as a `datetime-local` input value ('' = never expires).
+  const [newEventExpiresAt, setNewEventExpiresAt] = useState('');
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [createEventError, setCreateEventError] = useState('');
-  const [activatingEventId, setActivatingEventId] = useState<string | null>(null);
-  const [activateEventError, setActivateEventError] = useState('');
+  // Multi-Event Mode: any number of events can accept questions at once, so
+  // this toggles just the one row's own is_accepting_questions -- no more
+  // singleton "activate" concept.
+  const [togglingEventId, setTogglingEventId] = useState<string | null>(null);
+  const [toggleEventError, setToggleEventError] = useState('');
 
   // Per-event inline edit (title/subtitle/allowAnonymous/isAcceptingQuestions)
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [eventEditDraft, setEventEditDraft] = useState<{ title: string; titleHi: string; titleOr: string; subtitle: string; subtitleHi: string; subtitleOr: string; allowAnonymous: boolean; isAcceptingQuestions: boolean }>({ title: '', titleHi: '', titleOr: '', subtitle: '', subtitleHi: '', subtitleOr: '', allowAnonymous: true, isAcceptingQuestions: true });
+  const [eventEditDraft, setEventEditDraft] = useState<{ title: string; titleHi: string; titleOr: string; subtitle: string; subtitleHi: string; subtitleOr: string; allowAnonymous: boolean; isAcceptingQuestions: boolean; expiresAt: string }>({ title: '', titleHi: '', titleOr: '', subtitle: '', subtitleHi: '', subtitleOr: '', allowAnonymous: true, isAcceptingQuestions: true, expiresAt: '' });
   const [eventEditError, setEventEditError] = useState('');
   const [savingEventEdit, setSavingEventEdit] = useState(false);
 
@@ -195,9 +216,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     filtered = filtered.filter(q => q.categoryId === categoryFilter);
   }
 
-  if (eventFilter === 'live') {
-    filtered = filtered.filter(q => q.eventId === conferenceEvent.id);
-  } else if (eventFilter !== 'all') {
+  if (eventFilter !== 'all') {
     filtered = filtered.filter(q => q.eventId === eventFilter);
   }
 
@@ -300,7 +319,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         subtitleHi: newEventSubtitleHi.trim() || undefined,
         subtitleOr: newEventSubtitleOr.trim() || undefined,
         allowAnonymous: newEventAllowAnonymous,
-        isAcceptingQuestions: true
+        isAcceptingQuestions: true,
+        expiresAt: fromDatetimeLocalValue(newEventExpiresAt) || null
       });
       setNewEventTitle('');
       setNewEventTitleHi('');
@@ -309,6 +329,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       setNewEventSubtitleHi('');
       setNewEventSubtitleOr('');
       setNewEventAllowAnonymous(true);
+      setNewEventExpiresAt('');
     } catch (err: any) {
       setCreateEventError(err?.message || 'Unable to create event. Please try again.');
     } finally {
@@ -317,18 +338,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   };
 
   /**
-   * Makes the given event the single live event. Surfaces a 409 (another
-   * moderator just changed it) or any other failure inline.
+   * Flips one event's own accepting-questions flag -- independent of every
+   * other event, since any number can be open at once.
    */
-  const handleActivateEvent = async (id: string) => {
-    setActivatingEventId(id);
-    setActivateEventError('');
+  const handleToggleAcceptingQuestions = async (evt: EventRecord) => {
+    setTogglingEventId(evt.id);
+    setToggleEventError('');
     try {
-      await onActivateEvent(id);
+      await onUpdateEvent(evt.id, { isAcceptingQuestions: !evt.isAcceptingQuestions });
     } catch (err: any) {
-      setActivateEventError(err?.message || 'Unable to activate event. Please try again.');
+      setToggleEventError(err?.message || 'Unable to update event. Please try again.');
     } finally {
-      setActivatingEventId(null);
+      setTogglingEventId(null);
     }
   };
 
@@ -342,7 +363,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       subtitleHi: evt.subtitleHi || '',
       subtitleOr: evt.subtitleOr || '',
       allowAnonymous: evt.allowAnonymous,
-      isAcceptingQuestions: evt.isAcceptingQuestions
+      isAcceptingQuestions: evt.isAcceptingQuestions,
+      expiresAt: toDatetimeLocalValue(evt.expiresAt)
     });
     setEventEditError('');
   };
@@ -352,7 +374,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     setSavingEventEdit(true);
     setEventEditError('');
     try {
-      await onUpdateEvent(editingEventId, eventEditDraft);
+      // An empty field explicitly clears the expiry (null), not "leave alone" --
+      // onUpdateEvent's expiresAt !== undefined check means null still updates.
+      await onUpdateEvent(editingEventId, { ...eventEditDraft, expiresAt: fromDatetimeLocalValue(eventEditDraft.expiresAt) || null });
       setEditingEventId(null);
     } catch (err: any) {
       setEventEditError(err?.message || 'Unable to save event. Please try again.');
@@ -397,16 +421,14 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => conferenceEvent.id && onUpdateEvent(conferenceEvent.id, { isAcceptingQuestions: !conferenceEvent.isAcceptingQuestions })}
-            disabled={!conferenceEvent.id}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center space-x-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
-              conferenceEvent.isAcceptingQuestions ? 'cat-badge-emerald' : 'cat-badge-amber'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${conferenceEvent.isAcceptingQuestions ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-            <span>{conferenceEvent.isAcceptingQuestions ? 'Submissions OPEN' : 'Submissions PAUSED'}</span>
-          </button>
+          {/* Multi-Event Mode: any number of events can be open at once, so
+              there's no single "submissions open/paused" toggle anymore --
+              each event's own row in "Manage Events" has that control. This
+              is just an at-a-glance count. */}
+          <span className="px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center space-x-2 cat-badge-indigo">
+            <Radio className="w-3.5 h-3.5" />
+            <span>{events.filter(e => e.isAcceptingQuestions && !e.isExpired).length} event{events.filter(e => e.isAcceptingQuestions && !e.isExpired).length === 1 ? '' : 's'} open</span>
+          </span>
 
           <button
             onClick={() => toggleDrawer('events')}
@@ -526,6 +548,17 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               </button>
             </div>
 
+            <label className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs text-secondary">
+              <span className="whitespace-nowrap font-semibold">Expires (optional)</span>
+              <input
+                type="datetime-local"
+                value={newEventExpiresAt}
+                onChange={(e) => setNewEventExpiresAt(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+              />
+              <span className="text-[11px] text-muted">After this, the event drops off the join dropdown and stops accepting questions.</span>
+            </label>
+
             {/* Optional per-language title/subtitle -- shown to the audience
                 when they've picked that language; falls back to the fields
                 above when left blank. Translate fetches a draft from the
@@ -585,9 +618,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           {/* Event List */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-muted uppercase tracking-wider">All Events</h4>
-            {activateEventError && (
+            {toggleEventError && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
-                <AlertCircle className="w-3.5 h-3.5" /> {activateEventError}
+                <AlertCircle className="w-3.5 h-3.5" /> {toggleEventError}
               </p>
             )}
             {events.length === 0 ? (
@@ -597,25 +630,39 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                 <div key={evt.id} className="rounded-xl border border-divider p-3 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      {evt.isLive && (
+                      {evt.isExpired ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-surface-secondary text-muted border border-divider">
+                          EXPIRED
+                        </span>
+                      ) : evt.isAcceptingQuestions && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold cat-badge-emerald">
-                          <Radio className="w-3 h-3" /> LIVE
+                          <Radio className="w-3 h-3" /> OPEN
                         </span>
                       )}
                       <span className="text-sm font-semibold text-primary truncate">{evt.title}</span>
                       <span className="text-xs text-muted truncate">{evt.subtitle}</span>
                       <span className="text-[11px] font-mono text-muted">Code: {evt.joinCode}</span>
+                      {evt.expiresAt && (
+                        <span className="text-[11px] text-muted whitespace-nowrap">
+                          {evt.isExpired ? 'Expired' : 'Expires'} {new Date(evt.expiresAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {!evt.isLive && (
-                        <button
-                          onClick={() => handleActivateEvent(evt.id)}
-                          disabled={activatingEventId === evt.id}
-                          className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700 transition disabled:opacity-60"
-                        >
-                          {activatingEventId === evt.id ? 'Activating…' : 'Set Live'}
-                        </button>
-                      )}
+                      {/* Multi-Event Mode: each event's own accepting-questions
+                          flag, independent of every other event -- any number
+                          can be open at once. */}
+                      <button
+                        onClick={() => handleToggleAcceptingQuestions(evt)}
+                        disabled={togglingEventId === evt.id}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-60 ${
+                          evt.isAcceptingQuestions
+                            ? 'bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
+                      >
+                        {togglingEventId === evt.id ? 'Saving…' : evt.isAcceptingQuestions ? 'Pause questions' : 'Open questions'}
+                      </button>
                       <button
                         onClick={() => openEventEdit(evt)}
                         className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
@@ -716,6 +763,24 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                           <span>Accepting questions</span>
                         </label>
                       </div>
+                      <label className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs text-secondary">
+                        <span className="whitespace-nowrap font-semibold">Expires (optional)</span>
+                        <input
+                          type="datetime-local"
+                          value={eventEditDraft.expiresAt}
+                          onChange={(e) => setEventEditDraft(d => ({ ...d, expiresAt: e.target.value }))}
+                          className="px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
+                        />
+                        {eventEditDraft.expiresAt && (
+                          <button
+                            type="button"
+                            onClick={() => setEventEditDraft(d => ({ ...d, expiresAt: '' }))}
+                            className="text-[11px] font-semibold text-secondary hover:text-primary underline underline-offset-2 text-left"
+                          >
+                            Clear (never expires)
+                          </button>
+                        )}
+                      </label>
                       {eventEditError && (
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
                           <AlertCircle className="w-3.5 h-3.5" /> {eventEditError}
@@ -991,9 +1056,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               className="px-3 py-1.5 rounded-xl border border-divider text-xs text-secondary bg-surface outline-none"
             >
               <option value="all">All Events</option>
-              <option value="live">Live Event Only</option>
-              {events.filter(e => !e.isLive).map(e => (
-                <option key={e.id} value={e.id}>{e.title}</option>
+              {events.map(e => (
+                <option key={e.id} value={e.id}>{e.title}{e.isExpired ? ' (expired)' : e.isAcceptingQuestions ? ' (open)' : ''}</option>
               ))}
             </select>
 
@@ -1063,11 +1127,14 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         </span>
                       )}
 
-                      {q.eventId !== conferenceEvent.id && (
-                        <span className="text-[11px] text-muted bg-surface-secondary px-2 py-0.5 rounded border border-divider">
-                          {events.find(e => e.id === q.eventId)?.title || 'Past Event'}
-                        </span>
-                      )}
+                      {/* Multi-Event Mode: Moderator sees every event's
+                          questions together, so always label which event
+                          each one belongs to -- including expired ones,
+                          since their questions stay fully visible here. */}
+                      <span className="text-[11px] text-muted bg-surface-secondary px-2 py-0.5 rounded border border-divider">
+                        {events.find(e => e.id === q.eventId)?.title || 'Unknown Event'}
+                        {events.find(e => e.id === q.eventId)?.isExpired ? ' · Expired' : ''}
+                      </span>
 
                       <span className="text-xs text-muted">
                         {new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1093,10 +1160,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-divider">
                     
                     {/* Primary Action: PUSH TO PANEL -- only for questions
-                        belonging to the currently live event; the server
+                        whose own event is currently accepting questions
+                        (Multi-Event Mode: not tied to "the live event",
+                        there is no such singular thing); the server
                         enforces this too, this is just the UX reflection. */}
-                    {q.status !== 'pushed' && q.status !== 'answering' && (
-                      q.eventId === conferenceEvent.id ? (
+                    {q.status !== 'pushed' && q.status !== 'answering' && (() => {
+                      const qEvent = events.find(e => e.id === q.eventId);
+                      return qEvent?.isAcceptingQuestions && !qEvent?.isExpired ? (
                         <button
                           onClick={() => onUpdateStatus(q.id, 'pushed')}
                           className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition"
@@ -1108,13 +1178,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       ) : (
                         <span
                           className="px-3 py-1.5 rounded-xl bg-surface-secondary text-disabled font-bold text-xs flex items-center space-x-1.5 border border-divider cursor-not-allowed"
-                          title="Only questions from the live event can be pushed to the panel"
+                          title={qEvent?.isExpired ? "This question's event has expired" : "This question's event isn't accepting questions right now"}
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>Not Live Event</span>
+                          <span>{qEvent?.isExpired ? 'Event Expired' : 'Event Closed'}</span>
                         </span>
-                      )
-                    )}
+                      );
+                    })()}
 
                     {q.status === 'pushed' && (
                       <span className="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center space-x-1 border border-indigo-200">

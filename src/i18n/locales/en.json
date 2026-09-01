@@ -14,6 +14,12 @@
     "signOut": "Sign out",
     "language": "Language"
   },
+  "eventPicker": {
+    "choosePlaceholder": "Choose an event",
+    "title": "Pick an event to continue",
+    "subtitle": "Select which event's Q&A you'd like to join.",
+    "noneOpen": "No events are currently accepting questions right now."
+  },
   "footer": {
     "tagline": "Real-time Q&A platform for live events and conferences.",
     "features": "Features",
@@ -44,8 +50,10 @@
     "eventCode": "Event Code:",
     "askQuestion": "Ask a Question",
     "askQuestionSubtext": "Share your thoughts and perspectives with our panel",
-    "noLiveEvent": "No event is currently live.",
-    "noLiveEventSubtext": "Question submissions will reopen once a moderator starts the next event.",
+    "noLiveEvent": "This event isn't accepting questions right now.",
+    "noLiveEventSubtext": "Check back soon, or ask the organizer for an update.",
+    "eventEnded": "This event has ended.",
+    "eventEndedSubtext": "Questions are no longer being accepted for this event.",
     "submitSuccess": "Question submitted successfully!",
     "yourQuestion": "Your Question",
     "questionPlaceholder": "Share what's on your mind...",

@@ -12,6 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import { translate } from 'google-translate-api-x';
+import { GoogleGenAI, Type } from '@google/genai';
 import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole } from './src/types.js';
 import { logger } from './src/logger.js';
 
@@ -39,7 +40,85 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   }
 });
 
+
+
 console.log('âœ… Supabase admin client initialized');
+
+/**
+ * Given a question and a list of available categories, uses Gemini to return
+ * the most appropriate category ID.
+ * @param questionText The text of the question to classify.
+ * @param categories The list of possible categories.
+ * @returns The ID of the best-matching category, or null if none match well.
+ */
+async function classifyQuestion(questionText: string, categories: Category[]): Promise<string | null> {
+  if (!process.env.GEMINI_API_KEY) {
+    logger.warn('Gemini API key not found, skipping classification.');
+    return null;
+  }
+  if (categories.length === 0) {
+    logger.warn('No categories available for classification.');
+    return null;
+  }
+
+  const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+  const categoryIds = categories.map(c => c.id);
+
+  const prompt = `
+    Based on the following question, classify it into one of the provided categories.
+    If no category is a good fit, use "null".
+
+    Question: "${questionText}"
+  `;
+
+  try {
+    const result = await genAI.models.generateContent({
+        model: 'gemini-1.5-flash-latest',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              categoryId: { type: Type.STRING, enum: [...categoryIds, 'null'] },
+            },
+            required: ['categoryId'],
+          },
+          temperature: 0.1,
+          abortSignal: AbortSignal.timeout(3000), 
+        },
+      });
+
+
+    const jsonText = result.text;
+    if (!jsonText) {
+        logger.warn('Gemini returned no text, skipping classification.');
+        return null;
+    }
+    const parsed = JSON.parse(jsonText);
+
+    const chosenId = parsed.categoryId && parsed.categoryId !== 'null' ? parsed.categoryId : null;
+
+    if (chosenId && !categoryIds.includes(chosenId)) {
+      logger.warn('Gemini returned a categoryId that does not exist', {
+        returnedId: chosenId,
+        question: questionText,
+      });
+      return null;
+    }
+    
+    return chosenId;
+
+  } catch (error: any) {
+    logger.error('Error classifying question with Gemini', {
+      error: (error as any).message,
+      isTimeout: (error as any).name === 'AbortError',
+    });
+    // Fail-open: if classification fails, don't block the submission.
+    return null;
+  }
+}
 
 const app = express();
 const PORT = 3000;
@@ -149,6 +228,11 @@ function broadcastStateUpdate(type: string, data?: any) {
 
 // --- Events Helpers ---
 
+/** True once an event's optional `expires_at` has passed. No expiry set (null) never expires. */
+function computeIsExpired(expiresAt: string | null | undefined): boolean {
+  return !!expiresAt && new Date(expiresAt).getTime() <= Date.now();
+}
+
 /** Maps a Supabase `events` row to the camelCase shape the frontend expects. */
 function mapEventRow(row: any): EventRecord {
   return {
@@ -162,28 +246,36 @@ function mapEventRow(row: any): EventRecord {
     joinCode: row.join_code,
     allowAnonymous: row.allow_anonymous,
     isAcceptingQuestions: row.is_accepting_questions,
-    isLive: row.is_live,
+    expiresAt: row.expires_at || undefined,
+    isExpired: computeIsExpired(row.expires_at),
     createdAt: row.created_at
   };
 }
 
-/** Fallback shown only if no event has ever been made live (e.g. the migration hasn't run yet). */
-const NO_LIVE_EVENT_FALLBACK: ConferenceEvent = {
+/** Shape returned when no event was requested or the code didn't match anything. */
+const NO_EVENT_SELECTED_FALLBACK: ConferenceEvent = {
   id: '',
-  title: 'No Live Event',
+  title: '',
   subtitle: '',
   joinCode: '',
   allowAnonymous: true,
   isAcceptingQuestions: false,
-  isLive: false
+  isExpired: false
 };
 
-/** Resolves the single currently-live event, or null if none is live. */
-async function getLiveEvent(): Promise<ConferenceEvent | null> {
+/**
+ * Resolves a single event by its join code (case-insensitive -- codes are
+ * generated uppercase, but typed/scanned input shouldn't have to match
+ * case). Multi-Event Mode: there's no more "the live event" -- every event
+ * is independently reachable by its own code, and independently open or
+ * closed via its own `is_accepting_questions`.
+ */
+async function getEventByJoinCode(joinCode: string | undefined | null): Promise<ConferenceEvent | null> {
+  if (!joinCode || !joinCode.trim()) return null;
   const { data, error } = await supabase
     .from('events')
     .select('*')
-    .eq('is_live', true)
+    .ilike('join_code', joinCode.trim())
     .limit(1)
     .maybeSingle();
 
@@ -320,10 +412,15 @@ app.get('/api/state', async (req, res) => {
 
     logger.debug('Categories fetched', { count: categoriesData?.length || 0 });
 
-    // Resolve the currently live event (public-safe subset only -- the full
-    // events list with every event's join code is admin/moderator-gated via
-    // GET /api/events, never included in this unauthenticated snapshot).
-    const mappedEvent = (await getLiveEvent()) || NO_LIVE_EVENT_FALLBACK;
+    // Resolve the event this request is actually for, by join code
+    // (Multi-Event Mode: there's no more "the live event" -- ?event=<code>
+    // says which one). Public-safe subset only -- the full events list with
+    // every event's join code is admin/moderator-gated via GET /api/events,
+    // never included in this unauthenticated snapshot. Missing/unknown code
+    // (e.g. Moderator's own fetch, which doesn't pass one) resolves to the
+    // "nothing selected" fallback -- Moderator doesn't use this field, it
+    // gets every event via its own admin-gated fetch instead.
+    const mappedEvent = (await getEventByJoinCode(req.query.event as string)) || NO_EVENT_SELECTED_FALLBACK;
 
     // Map Supabase snake_case to frontend camelCase
     const mappedQuestions = (questionsData || []).map((q: any) => ({
@@ -367,16 +464,54 @@ app.get('/api/state', async (req, res) => {
 });
 
 /**
+ * @route GET /api/events/open
+ * @description Public, unauthenticated list of events currently accepting
+ * questions -- powers the "pick an event" dropdown shown at a bare `/`
+ * visit (Multi-Event Mode). Deliberately a much narrower shape than
+ * GET /api/events (admin-only): only what's needed to display and select
+ * an event, and only events that are actually open right now.
+ */
+app.get('/api/events/open', async (req, res) => {
+  try {
+    // Expired events (expires_at in the past) are excluded here even if
+    // still marked is_accepting_questions -- expiry is a hard cutoff for
+    // audience-facing visibility, independent of the manual toggle.
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, title_hi, title_or, subtitle, subtitle_hi, subtitle_or, join_code')
+      .eq('is_accepting_questions', true)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json((data || []).map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      titleHi: row.title_hi || undefined,
+      titleOr: row.title_or || undefined,
+      subtitle: row.subtitle,
+      subtitleHi: row.subtitle_hi || undefined,
+      subtitleOr: row.subtitle_or || undefined,
+      joinCode: row.join_code
+    })));
+  } catch (error: any) {
+    console.error('Error fetching open events from Supabase:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch open events' });
+  }
+});
+
+/**
  * @route POST /api/questions
  * @description Submits a new question from an audience member.
  * SECURITY: SessionId must be previously generated via POST /api/session.
  * Persists to Supabase and broadcasts update via SSE.
  */
 app.post('/api/questions', async (req, res) => {
-  const { text, authorName, isAnonymous, categoryId, deviceInfo, networkInfo } = req.body;
+  const { text, authorName, isAnonymous, eventJoinCode, deviceInfo, networkInfo } = req.body;
   const sessionId = req.cookies?.['qna_session_id'] as string;
 
-  logger.debug('Question submission received', { textLength: text?.length || 0, categoryId, hasSession: !!sessionId });
+  logger.debug('Question submission received', { textLength: text?.length || 0, hasSession: !!sessionId });
 
   if (!text || text.trim().length === 0) {
     logger.warn('Question submission rejected: empty text');
@@ -396,12 +531,24 @@ app.post('/api/questions', async (req, res) => {
   const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
   try {
-    const liveEvent = await getLiveEvent();
-    if (!liveEvent) {
-      return res.status(400).json({ error: 'No event is currently live. Question submissions are closed.' });
+    // Multi-Event Mode: the client says which event it's submitting to (by
+    // join code) -- there's no more implicit "the live event" to fall back
+    // to. That event's own is_accepting_questions is the only gate.
+    const targetEvent = await getEventByJoinCode(eventJoinCode);
+    if (!targetEvent) {
+      return res.status(400).json({ error: 'Unknown or missing event. Please select an event and try again.' });
+    }
+    if (targetEvent.isExpired) {
+      return res.status(400).json({ error: 'This event has ended and is no longer accepting questions.' });
+    }
+    if (!targetEvent.isAcceptingQuestions) {
+      return res.status(400).json({ error: 'This event is not accepting questions right now.' });
     }
 
-    logger.debug('Inserting question into Supabase', { sessionHash: hashSessionId(sessionId) });
+    const allCategories = await supabase.from('categories').select('*');
+    const classifiedCategoryId = await classifyQuestion(text, allCategories.data || []);
+
+    logger.debug('Inserting question into Supabase', { sessionHash: hashSessionId(sessionId), eventId: targetEvent.id });
 
     // Insert question into Supabase
     const { data, error } = await supabase
@@ -410,10 +557,10 @@ app.post('/api/questions', async (req, res) => {
         text: text.trim(),
         author_name: isAnonymous ? 'Anonymous Attendee' : (authorName?.trim() || 'Attendee'),
         is_anonymous: !!isAnonymous,
-        category_id: categoryId && categoryId.trim() ? categoryId : null,
+        category_id: classifiedCategoryId,
         status: 'pending',
         is_priority: false,
-        event_id: liveEvent.id,
+        event_id: targetEvent.id,
         session_id: sessionId,
         device_info: deviceInfo || null,
         network_info: {
@@ -483,22 +630,36 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Question not found' });
     }
 
-    // Only questions belonging to the currently live event may be pushed to
-    // the panel -- enforced here (not just hidden client-side) since this
-    // is the actual authorization boundary.
+    // Only questions belonging to an event that's currently open may be
+    // pushed to that event's panel -- enforced here (not just hidden
+    // client-side) since this is the actual authorization boundary.
+    // Multi-Event Mode: this is the question's own event, not "the live
+    // event" (there is no such singular thing anymore).
     if (status === 'pushed') {
-      const liveEvent = await getLiveEvent();
-      if (!liveEvent || question.event_id !== liveEvent.id) {
-        return res.status(403).json({ error: 'Only questions from the live event can be pushed to the panel.' });
+      const { data: eventRow, error: eventFetchError } = await supabase
+        .from('events')
+        .select('is_accepting_questions, expires_at')
+        .eq('id', question.event_id)
+        .maybeSingle();
+      if (eventFetchError) throw eventFetchError;
+      if (computeIsExpired(eventRow?.expires_at)) {
+        return res.status(403).json({ error: "This question's event has expired, so it can't be pushed to the panel." });
+      }
+      if (!eventRow?.is_accepting_questions) {
+        return res.status(403).json({ error: "This question's event isn't accepting questions right now, so it can't be pushed to the panel." });
       }
     }
 
-    // If changing to 'answering', demote any currently answering question
+    // If changing to 'answering', demote any other question *from the same
+    // event* that's currently answering -- scoped by event_id, since with
+    // multiple events concurrently live, a different event's panel may
+    // legitimately have its own question answering at the same time.
     if (status === 'answering') {
       await supabase
         .from('questions')
         .update({ status: 'answered', answered_at: new Date().toISOString() })
         .eq('status', 'answering')
+        .eq('event_id', question.event_id)
         .neq('id', id);
     }
 
@@ -738,7 +899,7 @@ app.get('/api/events', requireAdmin, async (req, res) => {
  * SECURITY: Requires admin or moderator role.
  */
 app.post('/api/events', requireAdmin, async (req, res) => {
-  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions } = req.body;
+  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions, expiresAt } = req.body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Event title is required' });
   }
@@ -767,7 +928,7 @@ app.post('/api/events', requireAdmin, async (req, res) => {
           join_code: generateJoinCode(),
           allow_anonymous: allowAnonymous ?? true,
           is_accepting_questions: isAcceptingQuestions ?? true,
-          is_live: false
+          expires_at: expiresAt || null
         })
         .select('*')
         .single();
@@ -797,7 +958,7 @@ app.post('/api/events', requireAdmin, async (req, res) => {
  */
 app.patch('/api/events/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions } = req.body;
+  const { title, titleHi, titleOr, subtitle, subtitleHi, subtitleOr, allowAnonymous, isAcceptingQuestions, expiresAt } = req.body;
 
   try {
     const updateData: any = {};
@@ -809,6 +970,9 @@ app.patch('/api/events/:id', requireAdmin, async (req, res) => {
     if (subtitleOr !== undefined) updateData.subtitle_or = subtitleOr?.trim() || null;
     if (allowAnonymous !== undefined) updateData.allow_anonymous = allowAnonymous;
     if (isAcceptingQuestions !== undefined) updateData.is_accepting_questions = isAcceptingQuestions;
+    // expiresAt: undefined means "not provided, leave alone"; null/'' means
+    // "explicitly clear the expiry" -- both distinct from a real timestamp.
+    if (expiresAt !== undefined) updateData.expires_at = expiresAt || null;
 
     const { data: updatedEvent, error } = await supabase
       .from('events')
@@ -822,57 +986,17 @@ app.patch('/api/events/:id', requireAdmin, async (req, res) => {
     }
 
     const result = mapEventRow(updatedEvent);
-    // Only broadcast if this is the live event -- Audience/Panel/Stage only
-    // ever care about the live event's config, and /api/stream has no auth
-    // so nothing beyond that public-safe shape should ever go out on it.
-    if (result.isLive) {
-      broadcastStateUpdate('event:updated', result);
-    }
+    // Multi-Event Mode: any event's config change is broadcast (tagged with
+    // its own id) -- clients viewing a *different* event ignore it
+    // client-side (see useRealTimeQnA's SSE handler), same pragmatic
+    // approach as question broadcasts. /api/stream has no auth, but this is
+    // the same public-safe shape GET /api/state already exposes for any
+    // event, so nothing new is leaked.
+    broadcastStateUpdate('event:updated', result);
     res.json(result);
   } catch (error: any) {
     console.error('Error updating event in Supabase:', error);
     res.status(500).json({ error: error.message || 'Failed to update event' });
-  }
-});
-
-/**
- * @route POST /api/events/:id/activate
- * @description Makes this event the single live event, atomically (via the
- * `activate_event` Postgres function) so a crash or a race between two
- * moderators can never leave zero or two live events.
- * SECURITY: Requires admin or moderator role.
- */
-app.post('/api/events/:id/activate', requireAdmin, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const { error: rpcError } = await supabase.rpc('activate_event', { p_event_id: id });
-    if (rpcError) {
-      if ((rpcError as any).code === '23505') {
-        return res.status(409).json({ error: 'Another moderator just changed the live event -- please retry.' });
-      }
-      if ((rpcError as any).code === 'P0001') {
-        return res.status(404).json({ error: 'Event not found' });
-      }
-      throw rpcError;
-    }
-
-    const { data: activatedEvent, error: fetchError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchError || !activatedEvent) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    const result = mapEventRow(activatedEvent);
-    broadcastStateUpdate('event:activated', result);
-    res.json(result);
-  } catch (error: any) {
-    console.error('Error activating event in Supabase:', error);
-    res.status(500).json({ error: error.message || 'Failed to activate event' });
   }
 });
 

@@ -83,8 +83,10 @@ export interface Category {
 
 /**
  * Interface representing the overall conference event details, as resolved
- * for the currently *live* event. Kept as the shape every view already
- * expects (Audience/Panel/Stage) even though events now live in a real list.
+ * for whichever specific event the current view is showing (Multi-Event
+ * Mode: identified by join code, e.g. via the `/e/:joinCode` route -- there
+ * is no single "the live event" anymore). Kept as the shape every view
+ * already expects (Audience/Panel/Stage).
  */
 export interface ConferenceEvent {
   /** The unique identifier of this event. */
@@ -107,8 +109,10 @@ export interface ConferenceEvent {
   allowAnonymous: boolean;
   /** If false, new question submissions are blocked by the server. */
   isAcceptingQuestions: boolean;
-  /** Always true for the event returned as `conferenceEvent` -- included for shape-compatibility with EventRecord. */
-  isLive: boolean;
+  /** ISO 8601 timestamp after which this event no longer accepts questions or appears in the open-events dropdown. Undefined means it never expires. */
+  expiresAt?: string;
+  /** Server-computed: true once `expiresAt` has passed. Blocks new submissions and dropdown visibility the same way a manually-paused event does, independent of `isAcceptingQuestions`. */
+  isExpired: boolean;
 }
 
 /**
@@ -119,6 +123,25 @@ export interface ConferenceEvent {
  */
 export interface EventRecord extends ConferenceEvent {
   createdAt: string;
+}
+
+/**
+ * The public, unauthenticated summary of one event currently accepting
+ * questions -- exactly what `GET /api/events/open` returns, and exactly
+ * what the "pick an event" dropdown needs to display and select an event.
+ * Deliberately narrower than ConferenceEvent: no join-code-gated internals
+ * like `allowAnonymous`/`isAcceptingQuestions` (every entry here is already
+ * known to be accepting questions, by construction of the endpoint).
+ */
+export interface OpenEventSummary {
+  id: string;
+  title: string;
+  titleHi?: string;
+  titleOr?: string;
+  subtitle: string;
+  subtitleHi?: string;
+  subtitleOr?: string;
+  joinCode: string;
 }
 
 /**

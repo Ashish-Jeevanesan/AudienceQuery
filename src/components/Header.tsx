@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ViewRole, AppUser } from '../types';
+import { ViewRole, AppUser, OpenEventSummary } from '../types';
 import { Users, ShieldCheck, Mic, Monitor, RefreshCw, Sun, Moon, LogOut, MoreVertical } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { EventPicker } from './EventPicker';
 
 interface HeaderProps {
   activeRole: ViewRole;
@@ -17,6 +18,11 @@ interface HeaderProps {
   currentUser: AppUser | null;
   onLogin: () => void;
   onLogout: () => void;
+  /** Multi-Event Mode: every event currently accepting questions, for the picker. */
+  openEvents: OpenEventSummary[];
+  /** The joinCode of the event currently shown, if any. */
+  currentJoinCode?: string;
+  onSelectEvent: (joinCode: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,7 +37,10 @@ export const Header: React.FC<HeaderProps> = ({
   answeringCount,
   currentUser,
   onLogin,
-  onLogout
+  onLogout,
+  openEvents,
+  currentJoinCode,
+  onSelectEvent
 }) => {
   const { t } = useTranslation();
 
@@ -94,12 +103,24 @@ export const Header: React.FC<HeaderProps> = ({
                 AQ
               </div>
               <div className="min-w-0">
-                <h1 className="text-sm font-bold text-primary truncate" style={{ color: `rgb(var(--text-primary))` }}>
-                  {title}
-                </h1>
-                <p className="text-xs text-secondary truncate" style={{ color: `rgb(var(--text-tertiary))` }}>
-                  {subtitle}
-                </p>
+                {activeRole === 'moderator' ? (
+                  <>
+                    <h1 className="text-sm font-bold text-primary truncate" style={{ color: `rgb(var(--text-primary))` }}>
+                      {title}
+                    </h1>
+                    <p className="text-xs text-secondary truncate" style={{ color: `rgb(var(--text-tertiary))` }}>
+                      {subtitle}
+                    </p>
+                  </>
+                ) : (
+                  <EventPicker
+                    openEvents={openEvents}
+                    currentJoinCode={currentJoinCode}
+                    onSelect={onSelectEvent}
+                    variant="compact"
+                    className="max-w-[260px]"
+                  />
+                )}
               </div>
             </div>
 
@@ -215,7 +236,17 @@ export const Header: React.FC<HeaderProps> = ({
                 AQ
               </div>
               <div className="min-w-0">
-                <h1 className="text-xs font-bold text-primary truncate" style={{ color: `rgb(var(--text-primary))` }}>{title}</h1>
+                {activeRole === 'moderator' ? (
+                  <h1 className="text-xs font-bold text-primary truncate" style={{ color: `rgb(var(--text-primary))` }}>{title}</h1>
+                ) : (
+                  <EventPicker
+                    openEvents={openEvents}
+                    currentJoinCode={currentJoinCode}
+                    onSelect={onSelectEvent}
+                    variant="compact"
+                    className="max-w-[150px] text-[11px]"
+                  />
+                )}
                 {isLockedRole && (
                   <p className="text-[11px] font-semibold truncate" style={{ color: `rgb(var(--primary))` }}>{roleLabels[currentUser!.role]}</p>
                 )}

@@ -616,5 +616,44 @@ COMMENT ON COLUMN events.subtitle_hi IS 'Hindi translation of the event subtitle
 COMMENT ON COLUMN events.subtitle_or IS 'Odia translation of the event subtitle, optional; falls back to `subtitle` when null.';
 
 -- ============================================================================
+-- 15. MIGRATION (2026-08-31): Multi-Event Mode -- retire the single-live-event
+-- singleton
+-- ============================================================================
+-- Until now, exactly one event could be `is_live` at a time (enforced by the
+-- `one_live_event` partial unique index below), and every audience member --
+-- regardless of which event's join code or QR they used -- landed on
+-- whichever event held that flag. That made it impossible to run two
+-- concurrent groups (e.g. the main service and a youth meeting) side by side.
+--
+-- `is_accepting_questions` already existed per-event and already meant the
+-- right thing (see migration 12's own events table). The actual change here
+-- is dropping the singleton so any number of events can be
+-- `is_accepting_questions = true` at once, each reachable by its own
+-- `/e/:joinCode` link -- see the "Multi-Event Mode" design plan for the full
+-- rationale. `is_live` doesn't survive as a "default event" fallback either:
+-- a bare `/` visit shows a picker of open events, not a fallback to any one
+-- event.
+DROP FUNCTION IF EXISTS activate_event(UUID);
+DROP INDEX IF EXISTS one_live_event;
+ALTER TABLE events DROP COLUMN IF EXISTS is_live;
+
+COMMENT ON TABLE events IS 'A list of events. Any number may have is_accepting_questions = true at once -- each is independently reachable via its own join_code.';
+COMMENT ON COLUMN questions.event_id IS 'The event this question belongs to. Only questions whose event has is_accepting_questions = true may be pushed to that event''s panel.';
+
+-- ============================================================================
+-- 16. MIGRATION (2026-08-31): Event expiry
+-- ============================================================================
+-- Optional end date/time for an event. Once past, the event is treated as
+-- expired: it drops out of the public "pick an event" dropdown and can no
+-- longer accept new question submissions, regardless of its own
+-- is_accepting_questions flag. NULL means "never expires" (the default for
+-- every existing event). The moderator dashboard still shows expired events
+-- (labeled Expired) and every question they ever received -- expiry only
+-- affects audience-facing visibility and new submissions, never the data.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+
+COMMENT ON COLUMN events.expires_at IS 'Optional end date/time. Once past, the event is excluded from the public open-events list and rejects new question submissions, but stays fully visible (with all its questions) to moderators. NULL = never expires.';
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

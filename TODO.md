@@ -2,9 +2,20 @@
 
 Things that have been flagged during development but intentionally not acted on yet — either awaiting an explicit go-ahead, or noted as optional follow-ups. Ask "any to-do remaining?" any time to get a status check against this list.
 
+## In progress — resume when Gemini Implementer is back
+
+- **Auto-select a question's category via Gemini, instead of the audience picking one manually.** Frontend half is done: the "Topic (optional)" picker and its state are removed from `AudienceView.tsx`, and `categoryId` is gone from `submitQuestion`'s signature in `useRealTimeQnA.ts` — the client no longer sends one at all. Server half is broken and needs a real fix, not a re-report:
+  - `server.ts` gained a `classifyQuestion()` helper wired into `POST /api/questions`, but **it always returns `null`** — verified directly by submitting a clearly parenting/faith-themed question against the real category list and getting `categoryId: null` back, with nothing logged at the failure point. Root cause: the Gemini call uses `responseMimeType: "application/json"` with a free-text prompt but no `responseSchema`, so the model's JSON key names aren't constrained to match what the code reads (`parsed.categoryId`) — it silently returns wrong-shaped JSON, and `categoryIds.includes(chosenId)` fails with zero diagnostic trail. Fix is to use `@google/genai`'s `responseSchema` (enum-constrained to the real category ids) instead of prompt wording alone.
+  - It also added a **new, unwanted dependency**, `@google/generative-ai` (an older/separate SDK), instead of the already-installed `@google/genai` it was told to use — needs removing from `package.json`/`package-lock.json` once the classifier is rewritten against the right package.
+  - No timeout around the Gemini call yet (a ~3s cap was asked for, to keep a slow API call from ever stalling question submission) — still missing.
+  - Leftover dead code: `categoryId` is still destructured from `req.body` in `POST /api/questions` in `server.ts` even though nothing uses it anymore.
+  - **A specific correction task is already sitting open on the Cog pinboard** (unclaimed — "CORRECTION: auto-category classifier doesn't actually classify — fix root cause, don't just re-report") with all of the above spelled out, ready to be picked up as soon as Gemini Implementer is restarted (it got stuck in a retry loop on its own backend's 400 errors, unrelated to this code, and needs a manual restart).
+  - A real `GEMINI_API_KEY` is already set in the local `.env` — that part's not blocking.
+
 ## Awaiting your go-ahead
 
 - **Persistent production logging.** On Vercel, `src/logger.ts` never writes a log file (serverless has no durable disk), so `/logs` and `GET /api/logs` only show real data when running locally — in production they just show a placeholder message. If you want real, queryable logs in production, the natural fix is a Supabase-backed `logs` table the server writes to instead of (or alongside) the local file, with `/logs` reading from a new endpoint instead of the file. Not started — you said you'd let me know if this is needed.
+- **Per-event banner/logo upload, used to theme that event.** Each event would carry its own uploaded banner image and logo, which then drive the visual theme (Audience hero, Header branding, Stage display, etc.) instead of the current fixed "AQ" mark and single indigo theme. Not started — needs a feasibility pass first (storage for uploads — likely Supabase Storage since there's no other file-upload path in the app today; how a single logo/banner maps onto a "theme" — background color extracted from the image, or separate color pickers alongside the upload; whether this replaces or layers on top of the existing CSS-variable design-token system) before the actual design is finalized.
 
 ## Known issues / optional follow-ups (not blocking anything, just flagged)
 

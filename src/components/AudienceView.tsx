@@ -7,7 +7,7 @@ import { getLocalizedText } from '../i18n/localizedContent';
 interface AudienceViewProps {
   categories: Category[];
   conferenceEvent: ConferenceEvent;
-  onSubmit: (params: { text: string; authorName: string; isAnonymous: boolean; categoryId: string }) => Promise<any>;
+  onSubmit: (params: { text: string; authorName: string; isAnonymous: boolean }) => Promise<any>;
   sessionId: string;
   mySubmittedIds: string[];
 }
@@ -21,7 +21,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
   const [questionText, setQuestionText] = useState('');
   const [authorName, setAuthorName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '');
   const [errorMsg, setErrorMsg] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
@@ -38,7 +37,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
         text: questionText,
         authorName,
         isAnonymous,
-        categoryId: selectedCategoryId || categories[0]?.id || ''
       });
       setQuestionText('');
       setAuthorName('');
@@ -97,7 +95,19 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
 
           {/* Card Body */}
           <div className="px-6 sm:px-8 py-8 space-y-6" style={{ backgroundColor: `rgb(var(--surface-elevated))` }}>
-            {!conferenceEvent.id ? (
+            {/* App.tsx already gates rendering this view at all until an
+                event is selected (Multi-Event Mode), so `.id` is always
+                truthy here -- this now covers the still-real cases of a
+                selected event that's paused, or one that's past its
+                expiry (a hard cutoff, distinct from the manual pause). */}
+            {conferenceEvent.isExpired ? (
+              <div className="text-center py-6 space-y-2">
+                <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('audience.eventEnded')}</p>
+                <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
+                  {t('audience.eventEndedSubtext')}
+                </p>
+              </div>
+            ) : !conferenceEvent.isAcceptingQuestions ? (
               <div className="text-center py-6 space-y-2">
                 <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('audience.noLiveEvent')}</p>
                 <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>
@@ -190,31 +200,6 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
                     placeholder={t('audience.namePlaceholder')}
                     className="input-base w-full"
                   />
-                </div>
-              )}
-
-              {/* Topic Select */}
-              {categories.length > 0 && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>
-                    {t('audience.topicOptional')}
-                  </label>
-                  <select
-                    value={selectedCategoryId}
-                    onChange={(e) => setSelectedCategoryId(e.target.value)}
-                    className="input-base w-full appearance-none cursor-pointer"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234f46e5' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                      backgroundPosition: 'right 1rem center',
-                      backgroundRepeat: 'no-repeat',
-                      paddingRight: '2.5rem'
-                    }}
-                  >
-                    <option value="">{t('audience.selectTopic')}</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{getLocalizedText(cat.name, cat.nameHi, cat.nameOr, i18n.resolvedLanguage || 'en')}</option>
-                    ))}
-                  </select>
                 </div>
               )}
 

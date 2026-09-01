@@ -7,25 +7,36 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Question, Category, ConferenceEvent, EventRecord, AppUser, QuestionStatus, ViewRole } from './types';
+import { Question, Category, ConferenceEvent, EventRecord, OpenEventSummary, AppUser, QuestionStatus, ViewRole } from './types';
 import { supabase } from './supabaseClient';
+
+const NO_EVENT_SELECTED: ConferenceEvent = {
+  id: '',
+  title: '',
+  subtitle: '',
+  joinCode: '',
+  allowAnonymous: true,
+  isAcceptingQuestions: false,
+  isExpired: false
+};
 
 /**
  * A custom hook to manage the real-time Q&A state and interactions.
  * Integrates Supabase Auth for role-based access control.
+ *
+ * @param joinCode Multi-Event Mode: the join code of the event this view is
+ * currently showing (from the `/e/:joinCode` route), or undefined when
+ * nothing's selected yet (e.g. a bare `/` visit, or the Moderator view,
+ * which shows an overview across every event regardless of the URL).
  */
-export function useRealTimeQnA() {
+export function useRealTimeQnA(joinCode?: string) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [conferenceEvent, setConferenceEvent] = useState<ConferenceEvent>({
-    id: '',
-    title: 'To Live is for Christ',
-    subtitle: 'Christian Family Conference 2026',
-    joinCode: 'LIVE4C',
-    allowAnonymous: true,
-    isAcceptingQuestions: true,
-    isLive: false
-  });
+  const [conferenceEvent, setConferenceEvent] = useState<ConferenceEvent>(NO_EVENT_SELECTED);
+  // Every event currently accepting questions, in the public-safe summary
+  // shape -- powers the "pick an event" dropdown. Fetched unauthenticated,
+  // unlike `events` below.
+  const [openEvents, setOpenEvents] = useState<OpenEventSummary[]>([]);
   // Full events list and user directory are admin/moderator-only and hold
   // sensitive data (every event's join code; every user's email) -- fetched
   // lazily only when their management drawers open, never as part of the
@@ -67,7 +78,52 @@ export function useRealTimeQnA() {
     return fetch(input, { ...init, headers });
   }, []);
 
-  // Effect for fetching initial state and setting up the SSE connection.
+  // Refs so the mount-once SSE handler below can always read the *current*
+  // joinCode/conferenceEvent without needing to reconnect SSE every time
+  // either changes (the closure would otherwise capture stale values from
+  // whatever they were at mount).
+  const joinCodeRef = useRef(joinCode);
+  useEffect(() => { joinCodeRef.current = joinCode; }, [joinCode]);
+  const conferenceEventIdRef = useRef(conferenceEvent.id);
+  useEffect(() => { conferenceEventIdRef.current = conferenceEvent.id; }, [conferenceEvent.id]);
+
+  // The public "pick an event" dropdown list -- every event currently
+  // accepting questions. Refreshed on mount and whenever any event's config
+  // changes (its accepting-questions flag may have just flipped).
+  const fetchOpenEvents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/events/open');
+      if (res.ok) setOpenEvents(await res.json());
+    } catch (err) {
+      console.error('Failed to load open events:', err);
+    }
+  }, []);
+
+  // Multi-Event Mode: /api/state now resolves `conferenceEvent` from a join
+  // code instead of "the live event" (there is no such singular thing
+  // anymore). Omitting the code (e.g. Moderator's own fetch) resolves to
+  // the "nothing selected" shape -- Moderator doesn't use this field.
+  const fetchState = useCallback(async (code?: string) => {
+    try {
+      const url = code ? `/api/state?event=${encodeURIComponent(code)}` : '/api/state';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data.questions || []);
+        setCategories(data.categories || []);
+        setConferenceEvent(data.conferenceEvent || NO_EVENT_SELECTED);
+      }
+    } catch (err) {
+      console.error('Failed to load state:', err);
+    }
+  }, []);
+
+  // Mount-once: establish the session, load the initial state and the
+  // open-events list, and connect SSE. Re-fetching when the selected event
+  // *changes* is handled by the separate joinCode effect further down --
+  // SSE itself doesn't need to reconnect for that, since /api/stream is
+  // unauthenticated and broadcasts to every client regardless of which
+  // event they're viewing; this hook just filters what it applies.
   useEffect(() => {
     let eventSource: EventSource | null = null;
 
@@ -89,22 +145,12 @@ export function useRealTimeQnA() {
       }
     };
 
-    const fetchInitialState = async () => {
-      try {
-        await ensureSessionId();
-        const res = await fetch('/api/state');
-        if (res.ok) {
-          const data = await res.json();
-          setQuestions(data.questions || []);
-          setCategories(data.categories || []);
-          if (data.conferenceEvent) setConferenceEvent(data.conferenceEvent);
-        }
-      } catch (err) {
-        console.error('Failed to load initial state:', err);
-      }
-    };
+    (async () => {
+      await ensureSessionId();
+      await fetchState(joinCodeRef.current);
+    })();
 
-    fetchInitialState();
+    fetchOpenEvents();
 
     // Establishes and manages the Server-Sent Events connection.
     const connectSSE = () => {
@@ -119,14 +165,11 @@ export function useRealTimeQnA() {
         try {
           const payload = JSON.parse(event.data);
 
-          // Handle full state updates
-          if (payload.state) {
-            setQuestions(payload.state.questions || []);
-            setCategories(payload.state.categories || []);
-            if (payload.state.conferenceEvent) setConferenceEvent(payload.state.conferenceEvent);
-          }
-
-          // Handle individual question updates
+          // Handle individual question updates -- deliberately NOT filtered
+          // by event here: Moderator wants realtime updates across every
+          // event's questions for its "all events" overview, and Panel/
+          // Stage/Audience already filter `questions` down to their own
+          // event client-side (via conferenceEvent.id), same as before.
           if (payload.type === 'question:created' && payload.data) {
             setQuestions(prev => [payload.data, ...prev]);
           } else if (payload.type === 'question:updated' && payload.data) {
@@ -141,10 +184,16 @@ export function useRealTimeQnA() {
             setCategories(prev =>
               prev.some(c => c.id === payload.data.id) ? prev : [...prev, payload.data]
             );
-          } else if ((payload.type === 'event:activated' || payload.type === 'event:updated') && payload.data) {
-            // The broadcast payload is already the public-safe subset (same
-            // shape as `conferenceEvent`) -- never the full admin events list.
-            setConferenceEvent(payload.data);
+          } else if (payload.type === 'event:updated' && payload.data) {
+            // Only apply to `conferenceEvent` if it's an update to the
+            // event *this view* is currently showing -- otherwise it's a
+            // different event's config change and irrelevant here. The
+            // open-events dropdown refreshes either way, since
+            // accepting-questions may have just flipped for any event.
+            if (payload.data.id === conferenceEventIdRef.current) {
+              setConferenceEvent(payload.data);
+            }
+            fetchOpenEvents();
           }
         } catch (err) {
           console.error('Error parsing SSE message:', err);
@@ -166,7 +215,21 @@ export function useRealTimeQnA() {
         eventSource.close();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch state whenever the selected event changes -- e.g. navigating
+  // to a different /e/:joinCode, or picking a different event in the
+  // dropdown. Skips the very first run since the mount effect above
+  // already fetched using whatever joinCode was present at mount.
+  const isFirstJoinCodeRun = useRef(true);
+  useEffect(() => {
+    if (isFirstJoinCodeRun.current) {
+      isFirstJoinCodeRun.current = false;
+      return;
+    }
+    fetchState(joinCode);
+  }, [joinCode, fetchState]);
 
   const captureDeviceMetadata = useCallback(() => {
     const deviceInfo = {
@@ -188,25 +251,15 @@ export function useRealTimeQnA() {
     return { deviceInfo, networkInfo };
   }, []);
 
-  const fetchFullState = useCallback(async () => {
-    try {
-      const res = await fetch('/api/state');
-      if (res.ok) {
-        const data = await res.json();
-        setQuestions(data.questions || []);
-        setCategories(data.categories || []);
-        if (data.conferenceEvent) setConferenceEvent(data.conferenceEvent);
-      }
-    } catch (err) {
-      console.error('Failed to refresh state:', err);
-    }
-  }, []);
+  // Thin wrapper kept so every existing call site (submitQuestion,
+  // updateStatus, editQuestion, ...) doesn't need to know the current
+  // joinCode itself -- it's already tracked in the ref above.
+  const fetchFullState = useCallback(() => fetchState(joinCodeRef.current), [fetchState]);
 
   const submitQuestion = useCallback(async (params: {
     text: string;
     authorName: string;
     isAnonymous: boolean;
-    categoryId: string;
   }) => {
     return runTracked(async () => {
       try {
@@ -221,6 +274,7 @@ export function useRealTimeQnA() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...params,
+            eventJoinCode: joinCodeRef.current,
             deviceInfo,
             networkInfo
           })
@@ -335,7 +389,7 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, runTracked]);
 
-  const createEvent = useCallback(async (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+  const createEvent = useCallback(async (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch('/api/events', {
@@ -352,7 +406,7 @@ export function useRealTimeQnA() {
     });
   }, [adminFetch, fetchEvents, runTracked]);
 
-  const updateEventById = useCallback(async (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean }) => {
+  const updateEventById = useCallback(async (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch(`/api/events/${id}`, {
@@ -361,26 +415,17 @@ export function useRealTimeQnA() {
           body: JSON.stringify(data)
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Unable to update event');
-        await Promise.all([fetchEvents(), fetchFullState()]);
+        // Also refresh the public open-events dropdown locally -- the same
+        // "don't trust SSE to reach this same client" reasoning as
+        // submitQuestion above, and accepting-questions may have just
+        // flipped for the event this update touched.
+        await Promise.all([fetchEvents(), fetchFullState(), fetchOpenEvents()]);
       } catch (err) {
         console.error('Update event error:', err);
         throw err;
       }
     });
-  }, [adminFetch, fetchEvents, fetchFullState, runTracked]);
-
-  const activateEvent = useCallback(async (id: string) => {
-    return runTracked(async () => {
-      try {
-        const res = await adminFetch(`/api/events/${id}/activate`, { method: 'POST' });
-        if (!res.ok) throw new Error((await res.json()).error || 'Unable to activate event');
-        await Promise.all([fetchEvents(), fetchFullState()]);
-      } catch (err) {
-        console.error('Activate event error:', err);
-        throw err;
-      }
-    });
-  }, [adminFetch, fetchEvents, fetchFullState, runTracked]);
+  }, [adminFetch, fetchEvents, fetchFullState, fetchOpenEvents, runTracked]);
 
   const fetchUsers = useCallback(async () => {
     return runTracked(async () => {
@@ -450,6 +495,7 @@ export function useRealTimeQnA() {
     questions,
     categories,
     conferenceEvent,
+    openEvents,
     events,
     users,
     isConnected,
@@ -466,7 +512,6 @@ export function useRealTimeQnA() {
     fetchEvents,
     createEvent,
     updateEventById,
-    activateEvent,
     fetchUsers,
     updateUser,
     translateText,

@@ -11,6 +11,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/logs" element={<LogsPage />} />
+        <Route path="/e/:joinCode" element={<App />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
