@@ -121,6 +121,16 @@ docker build -t audience-query .
 docker run --env-file .env -p 3000:3000 audience-query
 ```
 
+### 4. Testing
+
+There's no general test suite yet, but the Gemini auto-classification feature has a dedicated accuracy eval:
+
+```bash
+npm run eval:classify
+```
+
+This runs a 26-question labeled test set against the live category list and the real classifier, printing overall and per-category accuracy plus a table of any mismatches — useful for measuring the effect of any future prompt changes rather than guessing.
+
 ## Project Structure
 
 ```
@@ -129,16 +139,21 @@ docker run --env-file .env -p 3000:3000 audience-query
 │   └── index.ts            # Vercel Serverless Function entry point
 ├── database/
 │   └── schema.sql          # Supabase PostgreSQL schema
+├── docs/
+│   └── screenshots/        # README screenshots and reference diagrams
 ├── public/
 │   ├── favicon.svg
 │   └── ref/                  # Static reference diagrams
+├── scripts/
+│   └── eval-classification.ts # Labeled accuracy eval for the auto-classifier
 ├── src/
 │   ├── components/         # React components for different views
 │   ├── i18n/               # Internationalization setup and locales
 │   ├── App.tsx             # Main React application component
-│   ├── main.tsx            # React entry point
+│   ├── classify.ts         # Gemini-based question auto-classification
+│   ├── main.tsx             # React entry point
 │   ├── supabaseClient.ts   # Supabase client configuration
-│   ├── types.ts            # TypeScript type definitions
+│   ├── types.ts             # TypeScript type definitions
 │   └── useRealTimeQnA.ts   # Custom hook for SSE connection and state management
 ├── .env.example
 ├── Dockerfile

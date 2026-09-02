@@ -2,9 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-02] - Question Auto-Classification: Fixed End-to-End, Measured Accuracy Eval Added
+
+- **Fixed three separate, compounding bugs that made Gemini auto-classification silently non-functional in production**, found by testing directly against the live site rather than trusting code review alone:
+    1. `GEMINI_API_KEY` had never been added to Vercel's production environment variables — only existed in the local `.env` — so every classification call failed with "Gemini API key not found" and silently fell back to no category.
+    2. Once the key was added, classification still failed: the hardcoded model name `gemini-1.5-flash-latest` had been retired from the Gemini API (`404 NOT_FOUND`). Switched to `gemini-flash-latest`.
+    3. Even with a valid model, classification was unreliable: the prompt constrained the model to a valid category ID via `responseSchema`'s enum, but never told the model what any of those IDs actually meant, giving it no real signal to pick correctly among them. The prompt now includes the id→name mapping for every category.
+- **New reusable accuracy eval** (`scripts/eval-classification.ts`, run via `npm run eval:classify`): extracts `classifyQuestion()` into its own module (`src/classify.ts`) so the eval calls the exact production code path rather than a copy that could drift, fetches the live category list from Supabase at runtime, and runs a 26-question labeled test set (24 single-answer + 2 deliberately ambiguous, scored separately) against the real Gemini API — zero writes to the `questions` table.
+- **Found and fixed a real timeout/accuracy tradeoff via the eval, not guesswork**: at the original 3-second timeout, roughly 19% of real classification calls aborted before completing, each one silently failing open with no category — the dominant failure mode, not prompt quality. Separately, generic/logistical questions (e.g. "What time does the conference end today?") consistently returned no category even though a general/open-discussion category existed for exactly that case, because the prompt never named it as the preferred fallback. Fixed both: timeout raised to 7 seconds, and the prompt now generically prefers "whichever category best represents general/open discussion" over returning nothing for non-specific questions — worded without hardcoding a category name, since categories are defined per event/moderator and the name may differ.
+- **Verified via three independent eval runs** (26 questions each): 100% strict accuracy (24/24), 100% ambiguous accuracy (2/2), zero timeouts.
+
+## [2026-09-01] - README Rewritten to Match Current Architecture, Screenshots Added
+
+- README.md still described the project's original single-event, in-memory-database, no-auth demo from initial setup. Rewrote it against the actual current code (routes in `server.ts`, role logic in `App.tsx`, `database/schema.sql`, `package.json`) to cover Supabase-backed multi-tenant events, the 4 real auth roles, i18n, Docker, and a corrected 18-endpoint API list.
+- Added real screenshots of all 4 role views (Audience, Moderator, Panel, Stage) plus the two architecture reference diagrams, under `docs/screenshots/`.
+
 ## [2026-08-31] - Multi-Event Mode: Join-Code Routing Replaces the Single "Live Event" Singleton
 
-*Implemented and verified working end-to-end; not yet committed to `main` as of this writing — sitting in the working tree pending final review.*
 
 - **Retired the single-`is_live`-event model.** Until now exactly one event could be live at a time (a partial unique index plus an atomic `activate_event()` function), and every visitor landed on whichever event held that flag — making it impossible to run two concurrent groups side by side. Any number of events can now be `is_accepting_questions = true` at once, each independently reachable via its own `/e/:joinCode` link. Migration drops `is_live`, `one_live_event`, and `activate_event()`; `getLiveEvent()` is replaced server-side by `getEventByJoinCode()`.
 - **New public `GET /api/events/open` endpoint** powers a "pick an event" dropdown — every event currently accepting questions, in a narrow public-safe shape (no join codes beyond the one being offered, no admin-only fields). Excludes expired events even if still manually marked accepting.
