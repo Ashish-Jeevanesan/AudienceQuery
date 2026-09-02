@@ -64,17 +64,21 @@ async function classifyQuestion(questionText: string, categories: Category[]): P
   const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
   const categoryIds = categories.map(c => c.id);
+  const categoryDescriptions = categories.map(c => `- ${c.id}: ${c.name}`).join('\n');
 
   const prompt = `
-    Based on the following question, classify it into one of the provided categories.
+    Based on the following question, classify it into one of the provided categories by returning its ID.
     If no category is a good fit, use "null".
 
     Question: "${questionText}"
+
+    Available Categories:
+    ${categoryDescriptions}
   `;
 
   try {
     const result = await genAI.models.generateContent({
-        model: 'gemini-1.5-flash-latest',
+        model: 'gemini-flash-latest',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
