@@ -32,6 +32,7 @@ export async function classifyQuestion(questionText: string, categories: Categor
   const prompt = `
     Based on the following question, classify it into one of the provided categories by returning its ID.
     If no category is a good fit, use "null".
+    If the question is generic, logistical, or doesn't clearly fit a specific topic, prefer whichever category best represents general/open discussion over returning null.
 
     Question: "${questionText}"
 
@@ -53,7 +54,7 @@ export async function classifyQuestion(questionText: string, categories: Categor
             required: ['categoryId'],
           },
           temperature: 0.1,
-          abortSignal: AbortSignal.timeout(3000),
+          abortSignal: AbortSignal.timeout(7000),
         },
       });
 
