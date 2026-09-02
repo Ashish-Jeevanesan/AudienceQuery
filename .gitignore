@@ -11,3 +11,6 @@ coverage/
 .cog/
 .gemini/
 neon_db_creds.txt
+
+# Test artifacts
+scripts/classification-eval-results.json
