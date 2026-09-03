@@ -202,8 +202,7 @@ const NO_EVENT_SELECTED_FALLBACK: ConferenceEvent = {
 async function getEventByJoinCode(joinCode: string | undefined | null): Promise<ConferenceEvent | null> {
   if (!joinCode || !joinCode.trim()) return null;
   const { data, error } = await supabase
-    .from('events')
-    .select('*')
+    .from('events').select('*').eq('is_deleted', false)
     .ilike('join_code', joinCode.trim())
     .limit(1)
     .maybeSingle();
@@ -409,6 +408,7 @@ app.get('/api/events/open', async (req, res) => {
       .from('events')
       .select('id, title, title_hi, title_or, subtitle, subtitle_hi, subtitle_or, join_code')
       .eq('is_accepting_questions', true)
+      .eq('is_deleted', false)
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false });
 
@@ -550,8 +550,7 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
   try {
     // Fetch the question from Supabase
     const { data: question, error: fetchError } = await supabase
-      .from('questions')
-      .select('*')
+      .from('questions').select('*').eq('is_deleted', false)
       .eq('id', id)
       .single();
 
@@ -710,8 +709,7 @@ app.delete('/api/questions/:id', requireAdmin, async (req, res) => {
   try {
     // Fetch the question before deleting (for broadcast)
     const { data: question, error: fetchError } = await supabase
-      .from('questions')
-      .select('*')
+      .from('questions').select('*').eq('is_deleted', false)
       .eq('id', id)
       .single();
 
@@ -809,8 +807,7 @@ app.post('/api/categories', requireAdmin, async (req, res) => {
 app.get('/api/events', requireAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from('events')
-      .select('*')
+      .from('events').select('*').eq('is_deleted', false)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -928,6 +925,155 @@ app.patch('/api/events/:id', requireAdmin, async (req, res) => {
     res.status(500).json({ error: error.message || 'Failed to update event' });
   }
 });
+
+app.post('/api/events/:id/media/signed-upload', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { kind, slot } = req.body as { kind: 'logo' | 'banner'; slot?: 1 | 2 | 3 };
+
+  if (kind !== 'logo' && kind !== 'banner') {
+    return res.status(400).json({ error: "Invalid media kind: must be 'logo' or 'banner'" });
+  }
+  if (kind === 'banner' && (!slot || ![1, 2, 3].includes(slot))) {
+    return res.status(400).json({ error: "Invalid slot for banner: must be 1, 2, or 3" });
+  }
+
+  try {
+    const { error: eventError } = await supabase.from('events').select('id').eq('id', id).single();
+    if (eventError) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const path = kind === 'logo' ? `${id}/logo.jpg` : `${id}/banner-${slot}.jpg`;
+    const { data, error } = await supabase.storage.from('event-media').createSignedUploadUrl(path);
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    console.error('Error creating signed upload URL:', error);
+    res.status(500).json({ error: error.message || 'Failed to create signed upload URL' });
+  }
+});
+
+app.post('/api/events/:id/media/confirm', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { kind, slot, path } = req.body as { kind: 'logo' | 'banner'; slot?: 1 | 2 | 3; path: string };
+  
+  const expectedPath = kind === 'logo' ? `${id}/logo.jpg` : `${id}/banner-${slot}.jpg`;
+  if (path !== expectedPath) {
+    return res.status(400).json({ error: 'Path mismatch' });
+  }
+
+  try {
+    const { data: { publicUrl } } = supabase.storage.from('event-media').getPublicUrl(path);
+    const versionedUrl = `${publicUrl}?v=${Date.now()}`;
+
+    let updateData: any = {};
+    if (kind === 'logo') {
+      updateData.logo_url = versionedUrl;
+    } else {
+      const { data: eventData, error: fetchError } = await supabase.from('events').select('banner_urls').eq('id', id).single();
+      if (fetchError) throw fetchError;
+      
+      const bannerUrls = Array.isArray(eventData.banner_urls) ? [...eventData.banner_urls] : [];
+      while (bannerUrls.length < 3) {
+        bannerUrls.push(null);
+      }
+      bannerUrls[slot! - 1] = versionedUrl;
+      updateData.banner_urls = bannerUrls;
+    }
+    
+    const { data: updatedEvent, error } = await supabase.from('events').update(updateData).eq('id', id).select('*').single();
+    if (error) throw error;
+
+    const result = mapEventRow(updatedEvent);
+    broadcastStateUpdate('event:updated', result);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error confirming media upload:', error);
+    res.status(500).json({ error: error.message || 'Failed to confirm media upload' });
+  }
+});
+
+app.delete('/api/events/:id/media', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { kind, slot } = req.body as { kind: 'logo' | 'banner'; slot?: 1 | 2 | 3 };
+  
+  const path = kind === 'logo' ? `${id}/logo.jpg` : `${id}/banner-${slot}.jpg`;
+
+  try {
+    const { error: removeError } = await supabase.storage.from('event-media').remove([path]);
+    if (removeError) console.warn('Error removing from storage (may not exist)', removeError);
+
+    let updateData: any = {};
+    if (kind === 'logo') {
+      updateData.logo_url = null;
+    } else {
+      const { data: eventData, error: fetchError } = await supabase.from('events').select('banner_urls').eq('id', id).single();
+      if (fetchError) throw fetchError;
+      
+      const bannerUrls = Array.isArray(eventData.banner_urls) ? [...eventData.banner_urls] : [];
+      while (bannerUrls.length < 3) {
+        bannerUrls.push(null);
+      }
+      bannerUrls[slot! - 1] = null;
+      updateData.banner_urls = bannerUrls;
+    }
+
+    const { data: updatedEvent, error } = await supabase.from('events').update(updateData).eq('id', id).select('*').single();
+    if (error) throw error;
+
+    const result = mapEventRow(updatedEvent);
+    broadcastStateUpdate('event:updated', result);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error deleting media:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete media' });
+  }
+});
+
+app.delete('/api/events/:id', requireAdminOnly, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, is_deleted')
+      .eq('id', id)
+      .single();
+
+    if (eventError || !event || event.is_deleted) {
+      return res.status(404).json({ error: 'Event not found or already deleted' });
+    }
+
+    const { error: questionsError } = await supabase
+      .from('questions')
+      .update({ is_deleted: true })
+      .eq('event_id', id);
+
+    if (questionsError) throw questionsError;
+
+    const { error: eventUpdateError } = await supabase
+      .from('events')
+      .update({ is_deleted: true, logo_url: null, banner_urls: [] })
+      .eq('id', id);
+
+    if (eventUpdateError) throw eventUpdateError;
+    
+    const paths = [`${id}/logo.jpg`, `${id}/banner-1.jpg`, `${id}/banner-2.jpg`, `${id}/banner-3.jpg`];
+    const { error: storageError } = await supabase.storage.from('event-media').remove(paths);
+    if (storageError) {
+        console.warn(`Storage cleanup failed for event ${id}, some files may not have been removed.`, storageError);
+    }
+
+    broadcastStateUpdate('event:deleted', { id });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error soft-deleting event:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete event' });
+  }
+});
+
+
 
 /**
  * @route GET /api/users

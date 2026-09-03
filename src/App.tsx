@@ -105,7 +105,10 @@ export default function App() {
     fetchUsers,
     updateUser,
     translateText,
-    resetDemoData
+    resetDemoData,
+    uploadEventMedia,
+    deleteEventMedia,
+    deleteEvent
   } = useRealTimeQnA(joinCode);
 
   // Counts for different question statuses to show in the header badges.
@@ -246,6 +249,9 @@ export default function App() {
                 onFetchEvents={fetchEvents}
                 onCreateEvent={createEvent}
                 onUpdateEvent={updateEventById}
+                onUploadEventMedia={uploadEventMedia}
+                onDeleteEventMedia={deleteEventMedia}
+                onDeleteEvent={deleteEvent}
                 onFetchUsers={fetchUsers}
                 onUpdateUser={updateUser}
                 onTranslateText={translateText}

@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, OpenEventSummary, AppUser, QuestionStatus, ViewRole } from './types';
 import { supabase } from './supabaseClient';
+import { compressImage } from './imageCompress';
 
 const NO_EVENT_SELECTED: ConferenceEvent = {
   id: '',
@@ -192,6 +193,11 @@ export function useRealTimeQnA(joinCode?: string) {
             // accepting-questions may have just flipped for any event.
             if (payload.data.id === conferenceEventIdRef.current) {
               setConferenceEvent(payload.data);
+            }
+            fetchOpenEvents();
+          } else if (payload.type === 'event:deleted' && payload.data) {
+            if (payload.data.id === conferenceEventIdRef.current) {
+              setConferenceEvent(NO_EVENT_SELECTED);
             }
             fetchOpenEvents();
           }
@@ -491,6 +497,93 @@ export function useRealTimeQnA(joinCode?: string) {
     });
   }, [adminFetch, runTracked]);
 
+  const uploadEventMedia = useCallback(async (eventId: string, kind: 'logo' | 'banner', file: File, slot?: 1 | 2 | 3): Promise<void> => {
+    return runTracked(async () => {
+      try {
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+          throw new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+        }
+
+        const sizeLimitMB = kind === 'banner' ? 5 : 2;
+        if (file.size > sizeLimitMB * 1024 * 1024) {
+          throw new Error(`File size exceeds the ${sizeLimitMB}MB limit.`);
+        }
+
+        const compressedBlob = await compressImage(file, {
+          maxSizeMB: sizeLimitMB,
+          maxDimensions: 1920,
+          targetSizeKB: 400
+        });
+
+        const res = await adminFetch(`/api/events/${eventId}/media/signed-upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, slot })
+        });
+        if (!res.ok) {
+          throw new Error((await res.json()).error || 'Failed to get signed upload URL');
+        }
+        const { path, token } = await res.json();
+
+        const { error: uploadError } = await supabase.storage
+          .from('event-media')
+          .uploadToSignedUrl(path, token, compressedBlob, { contentType: 'image/jpeg' });
+        if (uploadError) throw uploadError;
+
+        const confirmRes = await adminFetch(`/api/events/${eventId}/media/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, slot, path })
+        });
+        if (!confirmRes.ok) {
+          throw new Error((await confirmRes.json()).error || 'Failed to confirm media upload');
+        }
+
+        await Promise.all([fetchEvents(), fetchFullState(), fetchOpenEvents()]);
+      } catch (err) {
+        console.error('Upload event media error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchEvents, fetchFullState, fetchOpenEvents, runTracked]);
+
+  const deleteEventMedia = useCallback(async (eventId: string, kind: 'logo' | 'banner', slot?: 1 | 2 | 3): Promise<void> => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/events/${eventId}/media`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, slot })
+        });
+        if (!res.ok) {
+          throw new Error((await res.json()).error || 'Unable to delete media');
+        }
+        await Promise.all([fetchEvents(), fetchFullState(), fetchOpenEvents()]);
+      } catch (err) {
+        console.error('Delete event media error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchEvents, fetchFullState, fetchOpenEvents, runTracked]);
+
+  const deleteEvent = useCallback(async (eventId: string): Promise<void> => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch(`/api/events/${eventId}`, {
+          method: 'DELETE'
+        });
+        if (!res.ok) {
+          throw new Error((await res.json()).error || 'Unable to delete event');
+        }
+        await fetchEvents();
+      } catch (err) {
+        console.error('Delete event error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, fetchEvents, runTracked]);
+
   return {
     questions,
     categories,
@@ -515,6 +608,9 @@ export function useRealTimeQnA(joinCode?: string) {
     fetchUsers,
     updateUser,
     translateText,
-    resetDemoData
+    resetDemoData,
+    uploadEventMedia,
+    deleteEventMedia,
+    deleteEvent
   };
 }

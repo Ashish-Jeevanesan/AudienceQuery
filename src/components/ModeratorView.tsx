@@ -8,7 +8,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2 } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image } from 'lucide-react';
+import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 
 const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
 
@@ -45,6 +46,9 @@ interface ModeratorViewProps {
   onFetchEvents: () => void;
   onCreateEvent: (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => Promise<void>;
   onUpdateEvent: (id: string, data: { title?: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => Promise<void>;
+  onUploadEventMedia: (eventId: string, kind: 'logo' | 'banner', file: File, slot?: 1 | 2 | 3) => Promise<void>;
+  onDeleteEventMedia: (eventId: string, kind: 'logo' | 'banner', slot?: 1 | 2 | 3) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
   onFetchUsers: () => void;
   onUpdateUser: (id: string, data: { role?: string; username?: string }) => Promise<void>;
   onTranslateText: (text: string, targets: ('hi' | 'or')[]) => Promise<Partial<Record<'hi' | 'or', string>>>;
@@ -69,6 +73,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onFetchEvents,
   onCreateEvent,
   onUpdateEvent,
+  onUploadEventMedia,
+  onDeleteEventMedia,
+  onDeleteEvent,
   onFetchUsers,
   onUpdateUser,
   onTranslateText
@@ -95,11 +102,12 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // Manage Events/Categories/Users drawers are mutually exclusive (accordion) --
   // opening one closes whichever was already open, so there's never more than
   // one to lose track of. Opening a drawer also smooth-scrolls it into view.
-  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | 'artifacts' | null>(null);
   const showEvents = openDrawer === 'events';
   const showCategories = openDrawer === 'categories';
   const showUsers = openDrawer === 'users';
-  const toggleDrawer = (drawer: 'events' | 'categories' | 'users') => {
+  const showArtifacts = openDrawer === 'artifacts';
+  const toggleDrawer = (drawer: 'events' | 'categories' | 'users' | 'artifacts') => {
     setOpenDrawer(prev => (prev === drawer ? null : drawer));
   };
   const closeDrawer = () => setOpenDrawer(null);
@@ -107,9 +115,10 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const eventsDrawerRef = useRef<HTMLDivElement>(null);
   const categoriesDrawerRef = useRef<HTMLDivElement>(null);
   const usersDrawerRef = useRef<HTMLDivElement>(null);
+  const artifactsDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : null;
+    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : openDrawer === 'artifacts' ? artifactsDrawerRef : null;
     ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [openDrawer]);
 
@@ -455,6 +464,14 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               <span>Manage Users</span>
             </button>
           )}
+
+          <button
+            onClick={() => toggleDrawer('artifacts')}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+          >
+            <Image className="w-4 h-4" />
+            <span>Manage Artifacts</span>
+          </button>
         </div>
       </div>
 
@@ -669,6 +686,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         title="Edit event"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { if (window.confirm(`Delete "${evt.title}"? This cannot be undone — the event, its questions, and its images will be permanently removed.`)) onDeleteEvent(evt.id); }}
+                        className="p-3 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition"
+                        title="Delete event"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -950,6 +974,16 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {showArtifacts && (
+        <div ref={artifactsDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn scroll-mt-24">
+          <ManageArtifactsDrawer
+            events={events}
+            onUploadEventMedia={onUploadEventMedia}
+            onDeleteEventMedia={onDeleteEventMedia}
+          />
         </div>
       )}
 
