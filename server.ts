@@ -175,6 +175,8 @@ function mapEventRow(row: any): EventRecord {
     isAcceptingQuestions: row.is_accepting_questions,
     expiresAt: row.expires_at || undefined,
     isExpired: computeIsExpired(row.expires_at),
+    logoUrl: row.logo_url || undefined,
+    bannerUrls: row.banner_urls?.length ? row.banner_urls : undefined,
     createdAt: row.created_at
   };
 }
