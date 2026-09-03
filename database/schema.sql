@@ -684,5 +684,88 @@ VALUES ('event-media', 'event-media', true, 2097152, ARRAY['image/jpeg', 'image/
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
+-- 18. MIGRATION (2026-09-03): Soft-delete events + questions
+-- ============================================================================
+-- Deleting an event is a soft delete: a void flag flipped on the event and
+-- every question belonging to it, together. There is no restore path --
+-- once soft-deleted, always soft-deleted. Images (logo/banners) ARE hard-
+-- deleted from Storage immediately on delete (see server.ts's
+-- DELETE /api/events/:id handler); only the event/question ROWS are soft-
+-- deleted. Every list-serving query in server.ts filters is_deleted = false.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+COMMENT ON COLUMN events.is_deleted IS 'If true, this event is considered soft-deleted and should not be returned in any standard queries. This is an irreversible action.';
+
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+COMMENT ON COLUMN questions.is_deleted IS 'If true, this question is considered soft-deleted, usually as a cascade from its parent event being deleted. This is an irreversible action.';
+
+CREATE INDEX IF NOT EXISTS idx_events_is_deleted ON events(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_questions_is_deleted ON questions(is_deleted);
+
+-- ============================================================================
+-- 19. MIGRATION (2026-09-03): Security hardening -- categories/questions RLS,
+-- unused SECURITY DEFINER views, user_roles, auth trigger
+-- ============================================================================
+-- categories had permissive RLS policies with NO real role check
+-- (qual/with_check unconditionally true), letting anyone holding the
+-- public anon key insert/update/delete categories directly via Supabase's
+-- REST API, completely bypassing every requireAdmin check in server.ts.
+-- questions had policies gated on Postgres session variables
+-- (app.is_admin, app.current_session_id) that this app's code has never
+-- set anywhere -- inert today, but latent: if those variables were ever
+-- set by anything, questions_user_update's unconditional with_check:true
+-- would become a live vulnerability. Verified safe to drop: grep across
+-- src/ confirms the frontend never calls supabase.from(...) anywhere --
+-- the anon-key client is used only for Supabase Auth. All real
+-- reads/writes go through server.ts's service-role client, which bypasses
+-- RLS entirely. These policies served no legitimate function.
+DROP POLICY IF EXISTS categories_public_select ON categories;
+DROP POLICY IF EXISTS categories_admin_insert ON categories;
+DROP POLICY IF EXISTS categories_admin_update ON categories;
+DROP POLICY IF EXISTS categories_admin_delete ON categories;
+
+DROP POLICY IF EXISTS questions_select_own_or_admin ON questions;
+DROP POLICY IF EXISTS questions_user_insert ON questions;
+DROP POLICY IF EXISTS questions_user_update ON questions;
+DROP POLICY IF EXISTS questions_admin_delete ON questions;
+
+-- questions_with_categories / dashboard_stats: SECURITY DEFINER views
+-- (defined earlier in this file), readable by anon/authenticated,
+-- bypassing RLS entirely. questions_with_categories exposed every
+-- question's raw session_id/device_info/network_info (including IP
+-- addresses) regardless of status -- a real PII leak via direct
+-- PostgREST access, no app code involved. Confirmed via grep that
+-- server.ts never references either view -- both are unused legacy
+-- artifacts. Revoking grants rather than dropping the views, in case a
+-- future admin tool wants them via the service role (which bypasses
+-- grants/RLS regardless).
+REVOKE ALL ON questions_with_categories FROM anon, authenticated;
+REVOKE ALL ON dashboard_stats FROM anon, authenticated;
+
+-- user_roles: a 4-row static enum table (admin/moderator/panelist/stage)
+-- backing users.role's foreign key -- not per-user data, so this was
+-- never a privilege-escalation path. Still, RLS was fully disabled with
+-- anon holding full INSERT/UPDATE/DELETE, letting anyone corrupt the
+-- reference table directly via PostgREST. Brings it to the same
+-- default-deny posture as every other table; the service role (which the
+-- FK-checking backend writes through) bypasses RLS regardless.
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON user_roles FROM anon, authenticated;
+
+-- handle_new_auth_user(): the auth-signup trigger function (defined
+-- earlier in this file), flagged because SECURITY DEFINER functions are
+-- exposed as callable RPC endpoints by default via PUBLIC's EXECUTE
+-- grant (which anon/authenticated inherit regardless of any REVOKE
+-- against their own role names specifically -- had to revoke from PUBLIC
+-- directly). The trigger itself is unaffected: a trigger invocation runs
+-- under the function's own SECURITY DEFINER context, not via a role's
+-- EXECUTE grant.
+REVOKE EXECUTE ON FUNCTION handle_new_auth_user() FROM PUBLIC;
+
+-- Minor hardening: pin search_path on the shared updated_at trigger
+-- function so it can't be redirected by a session-level search_path
+-- change (defense-in-depth, not a known exploit path here).
+ALTER FUNCTION update_updated_at_column() SET search_path = public;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
