@@ -6,9 +6,10 @@ import { Heart, ScrollText } from 'lucide-react';
 interface FooterProps {
   /** Shows a small "Logs" link, admin-only -- everyone else never sees it. */
   isAdmin?: boolean;
+  logoUrl?: string;
 }
 
-export const Footer: React.FC<FooterProps> = ({ isAdmin }) => {
+export const Footer: React.FC<FooterProps> = ({ isAdmin, logoUrl }) => {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
@@ -20,10 +21,19 @@ export const Footer: React.FC<FooterProps> = ({ isAdmin }) => {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-[10px] tracking-tighter"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-[10px] tracking-tighter overflow-hidden"
                 style={{ backgroundColor: 'rgb(var(--primary))' }}
               >
-                AQ
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.textContent = 'AQ'; }}
+                  />
+                ) : (
+                  'AQ'
+                )}
               </div>
               <span className="font-semibold text-primary">AudienceQuery</span>
             </div>

@@ -89,8 +89,17 @@ export const StageView: React.FC<StageViewProps> = ({
         <div className="flex items-center justify-between gap-4">
           {/* Conference Branding */}
           <div className="flex items-center space-x-4 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/20 shrink-0">
-              <Sparkles className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/20 shrink-0 overflow-hidden">
+              {conferenceEvent.logoUrl ? (
+                <img
+                  src={conferenceEvent.logoUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <Sparkles className="w-7 h-7 text-white" />
+              )}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

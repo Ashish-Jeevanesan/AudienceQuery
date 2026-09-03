@@ -10,6 +10,7 @@ interface HeaderProps {
   setActiveRole: (role: ViewRole) => void;
   title: string;
   subtitle: string;
+  logoUrl?: string;
   isConnected: boolean;
   onResetDemo: () => void;
   pendingCount: number;
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveRole,
   title,
   subtitle,
+  logoUrl,
   isConnected,
   onResetDemo,
   pendingCount,
@@ -99,8 +101,17 @@ export const Header: React.FC<HeaderProps> = ({
               <div style={{
                 backgroundColor: `rgb(var(--primary))`,
                 color: `rgb(var(--primary-text))`
-              }} className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base tracking-tighter shadow-md flex-shrink-0">
-                AQ
+              }} className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base tracking-tighter shadow-md flex-shrink-0 overflow-hidden">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.textContent = 'AQ'; }}
+                  />
+                ) : (
+                  'AQ'
+                )}
               </div>
               <div className="min-w-0">
                 {activeRole === 'moderator' ? (
@@ -232,8 +243,17 @@ export const Header: React.FC<HeaderProps> = ({
               <div style={{
                 backgroundColor: `rgb(var(--primary))`,
                 color: `rgb(var(--primary-text))`
-              }} className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs tracking-tighter shadow-md flex-shrink-0">
-                AQ
+              }} className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-xs tracking-tighter shadow-md flex-shrink-0 overflow-hidden">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.textContent = 'AQ'; }}
+                  />
+                ) : (
+                  'AQ'
+                )}
               </div>
               <div className="min-w-0">
                 {activeRole === 'moderator' ? (

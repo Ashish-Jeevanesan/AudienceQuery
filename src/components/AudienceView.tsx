@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MessageSquare, Send } from 'lucide-react';
 import type { Category, ConferenceEvent } from '../types';
 import { getLocalizedText } from '../i18n/localizedContent';
+import { HeroBannerCarousel } from './HeroBannerCarousel';
 
 interface AudienceViewProps {
   categories: Category[];
@@ -51,25 +52,29 @@ export const AudienceView: React.FC<AudienceViewProps> = ({
     <div className="min-h-screen" style={{ backgroundColor: `rgb(var(--background))` }}>
       {/* HERO SECTION - REFINED PROPORTIONS */}
       <div className="relative overflow-hidden border-b border-divider" style={{ backgroundColor: `rgb(var(--hero-background))` }}>
-        <div className="px-4 py-8 sm:px-6 sm:py-14 lg:px-8 lg:py-20">
+        {conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 && (
+          <HeroBannerCarousel imageUrls={conferenceEvent.bannerUrls} />
+        )}
+        <div className={`relative z-10 px-4 py-8 sm:px-6 sm:py-14 lg:px-8 lg:py-20 ${conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? 'backdrop-blur-xs bg-black/10' : ''}`}>
           <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 text-center">
             {/* Event Code Badge */}
             <div className="inline-flex items-center justify-center px-4 py-2.5 rounded-full border" style={{
-              backgroundColor: `rgb(var(--surface))`,
-              borderColor: `rgb(var(--border-strong))`
+              backgroundColor: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? 'rgba(255,255,255,0.1)' : `rgb(var(--surface))`,
+              borderColor: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? 'rgba(255,255,255,0.2)' : `rgb(var(--border-strong))`,
+              backdropFilter: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? 'blur(8px)' : undefined
             }}>
-              <span className="text-sm font-semibold" style={{ color: `rgb(var(--text-secondary))` }}>
-                {t('audience.eventCode')} <span className="font-bold ml-2" style={{ color: `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
+              <span className="text-sm font-semibold" style={{ color: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? '#f1f5f9' : `rgb(var(--text-secondary))` }}>
+                {t('audience.eventCode')} <span className="font-bold ml-2" style={{ color: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? '#fbbf24' : `rgb(var(--accent))` }}>{conferenceEvent.joinCode}</span>
               </span>
             </div>
 
             {/* Main Title */}
-            <h1 className="text-4xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: `rgb(var(--hero-text-primary))` }}>
+            <h1 className="text-4xl sm:text-7xl lg:text-8xl font-bold leading-tight" style={{ color: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? '#ffffff' : `rgb(var(--hero-text-primary))` }}>
               {getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, i18n.resolvedLanguage || 'en')}
             </h1>
 
             {/* Subtitle */}
-            <p className="text-lg sm:text-xl" style={{ color: `rgb(var(--hero-text-secondary))` }}>
+            <p className="text-lg sm:text-xl" style={{ color: conferenceEvent.bannerUrls && conferenceEvent.bannerUrls.filter(Boolean).length > 0 ? '#cbd5e1' : `rgb(var(--hero-text-secondary))` }}>
               {getLocalizedText(conferenceEvent.subtitle, conferenceEvent.subtitleHi, conferenceEvent.subtitleOr, i18n.resolvedLanguage || 'en')}
             </p>
           </div>

@@ -185,6 +185,7 @@ export default function App() {
         setActiveRole={setActiveRole}
         title={getLocalizedText(conferenceEvent.title, conferenceEvent.titleHi, conferenceEvent.titleOr, i18n.resolvedLanguage || 'en')}
         subtitle={getLocalizedText(conferenceEvent.subtitle, conferenceEvent.subtitleHi, conferenceEvent.subtitleOr, i18n.resolvedLanguage || 'en')}
+        logoUrl={conferenceEvent.logoUrl}
         isConnected={isConnected}
         onResetDemo={resetDemoData}
         pendingCount={pendingCount}
@@ -279,7 +280,7 @@ export default function App() {
           </>
         )}
       </main>
-      <Footer isAdmin={currentUser?.role === 'admin'} />
+      <Footer isAdmin={currentUser?.role === 'admin'} logoUrl={conferenceEvent.logoUrl} />
 
       {/* Matches Header's mobile bottom nav bar (shown to the same
           admin/moderator accounts) -- reserves space at the true bottom of
