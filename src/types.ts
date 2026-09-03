@@ -113,6 +113,10 @@ export interface ConferenceEvent {
   expiresAt?: string;
   /** Server-computed: true once `expiresAt` has passed. Blocks new submissions and dropdown visibility the same way a manually-paused event does, independent of `isAcceptingQuestions`. */
   isExpired: boolean;
+  /** Public Storage URL of the event's logo. Undefined means fall back to the default "AQ" branding. */
+  logoUrl?: string;
+  /** Up to 3 public Storage URLs, in carousel display order. Empty/undefined means no hero banner carousel. */
+  bannerUrls?: string[];
 }
 
 /**

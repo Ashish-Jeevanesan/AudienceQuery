@@ -655,5 +655,34 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
 COMMENT ON COLUMN events.expires_at IS 'Optional end date/time. Once past, the event is excluded from the public open-events list and rejects new question submissions, but stays fully visible (with all its questions) to moderators. NULL = never expires.';
 
 -- ============================================================================
+-- 17. MIGRATION (2026-09-03): Event branding (logo + hero banners)
+-- ============================================================================
+-- Per-event logo (replaces the default "AQ" mark in Header/Footer/Stage when
+-- set) and up to 3 hero banner images (crossfading carousel behind the
+-- Audience hero text). Both nullable/empty by default -- an event that never
+-- uploads branding renders exactly as it did before this migration.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS banner_urls TEXT[] NOT NULL DEFAULT '{}';
+
+COMMENT ON COLUMN events.logo_url IS 'Public Storage URL of the event''s logo, or NULL to use the default "AQ" branding.';
+COMMENT ON COLUMN events.banner_urls IS 'Up to 3 public Storage URLs, in carousel display order. Empty array = no banner carousel, hero renders its default flat background.';
+
+-- Storage bucket for event branding assets. Public read (images render on
+-- the unauthenticated Audience/Stage views via Supabase's public object
+-- URL), but there are deliberately NO INSERT/UPDATE/DELETE policies on
+-- storage.objects for this bucket -- all writes go through the server's
+-- service-role client via a short-lived signed upload URL (bypasses RLS by
+-- construction), never directly from an anon/authenticated client. Same
+-- default-deny posture as the `events` table itself.
+--
+-- file_size_limit is a post-compression backstop: the client compresses
+-- every image to a ~400KB target before upload, so 2MB (2097152 bytes) is a
+-- generous ceiling that only matters if a browser can't run that
+-- compression step (e.g. no Canvas support).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('event-media', 'event-media', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
