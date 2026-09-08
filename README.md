@@ -40,6 +40,14 @@ The application is a multi-tenant platform capable of running multiple events co
 -   **Event Expiry**: Events can have an optional expiration time, after which they no longer accept submissions.
 -   **Event Picker**: Visitors to the root URL are presented with a list of currently open events to choose from.
 
+## Event Branding
+
+Moderators can personalize any event's visual identity from the "Manage Artifacts" drawer:
+
+-   **Logo**: replaces the default "AQ" mark in the Header, Footer, and Stage display when set.
+-   **Hero Banners**: up to 3 images, shown as a crossfading ambient carousel behind the Audience view's hero title/subtitle.
+-   **Uploads go straight to Supabase Storage** via signed URLs (the app's serverless function never handles the image bytes), with client-side compression before upload.
+
 ## Key Functional Views & Features
 
 ### 📱 Audience Submission Interface
@@ -47,12 +55,15 @@ The application is a multi-tenant platform capable of running multiple events co
 - **Automatic Classification**: Questions are automatically categorized using the Gemini API, removing the need for manual topic selection.
 - **Live Status Badges**: Audience members track their submitted questions through stages: In Review → Pushed to Panel → Answering Live 🎙️ → Answered.
 - **Internationalization**: The interface is available in English, Hindi, and Odia.
+- **Hero Banner Carousel**: when an event has uploaded banners, they play as an ambient crossfading background behind the hero text.
 
 ### 🛡️ Backend Moderator Bridge Dashboard
 - **Command Central**: Bridges incoming audience questions and stage panelists.
 - **Categorized Inbox**: Filter by Inbox Pending, Pushed to Panel, Approved Public Feed, Live/Answered, and Rejected.
 - **Management Drawers**: Dedicated UI for managing Events, Categories, and Users (Users drawer is admin-only).
 - **Translate Assist**: A "Translate" button provides draft translations for event and category names into Hindi and Odia.
+- **Manage Artifacts**: upload/replace/remove an event's logo and up to 3 hero banners.
+- **Delete Event**: an admin-only, irreversible soft-delete that removes an event and its questions from every view and immediately purges its Storage images. No restore path.
 - **Admin Logs**: Admins have access to a dedicated `/logs` page to view application logs.
 
 ### 🎙️ Panel Members' Live Screen (`/panel`)
@@ -69,9 +80,10 @@ The application is a multi-tenant platform capable of running multiple events co
 
 - **Frontend**: React (Vite), TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express.js on Vercel Serverless Functions
-- **Database & Auth**: Supabase (PostgreSQL)
+- **Database, Auth & Storage**: Supabase (PostgreSQL, Auth, Storage with signed upload URLs)
 - **Real-time Communication**: Server-Sent Events (SSE)
 - **AI**: `@google/genai` for question classification.
+- **Animation**: `motion` (Framer Motion) for the hero banner carousel.
 - **Internationalization (i18n)**: `i18next` and `react-i18next` for English, Hindi, and Odia. `google-translate-api-x` for translation assistance.
 - **Deployment**: Vercel & Docker
 
@@ -151,6 +163,7 @@ This runs a 26-question labeled test set against the live category list and the 
 │   ├── i18n/               # Internationalization setup and locales
 │   ├── App.tsx             # Main React application component
 │   ├── classify.ts         # Gemini-based question auto-classification
+│   ├── imageCompress.ts    # Client-side image compression before upload
 │   ├── main.tsx             # React entry point
 │   ├── supabaseClient.ts   # Supabase client configuration
 │   ├── types.ts             # TypeScript type definitions
@@ -179,6 +192,10 @@ The Express server provides a REST API and a Server-Sent Events (SSE) stream.
 -   `GET /api/events`: (Admin/Mod) Lists all events.
 -   `POST /api/events`: (Admin/Mod) Creates a new event.
 -   `PATCH /api/events/:id`: (Admin/Mod) Updates an event's configuration.
+-   `DELETE /api/events/:id`: (Admin only) Irreversible soft-delete of an event and its questions; purges its Storage images immediately.
+-   `POST /api/events/:id/media/signed-upload`: (Admin/Mod) Issues a short-lived Supabase Storage upload URL for an event's logo or a banner slot.
+-   `POST /api/events/:id/media/confirm`: (Admin/Mod) Confirms a completed upload and records its public URL on the event.
+-   `DELETE /api/events/:id/media`: (Admin/Mod) Removes an event's logo or a specific banner slot from Storage and clears its URL.
 -   `GET /api/users`: (Admin only) Lists all users and their roles.
 -   `PATCH /api/users/:id`: (Admin only) Updates a user's role or username.
 -   `POST /api/translate`: (Admin/Mod) Gets draft translations for text.
