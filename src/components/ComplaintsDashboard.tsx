@@ -96,6 +96,10 @@ export const ComplaintsDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  useEffect(() => {
+    document.title = 'Complaints Dashboard';
+  }, []);
+
   const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const { data: { session: current } } = await supabase.auth.getSession();
     if (!current) throw new Error('Sign-in is required');
@@ -259,13 +263,14 @@ export const ComplaintsDashboard: React.FC = () => {
         </div>
 
         <div className="relative">
-          <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Search by name, phone, or ticket number…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="input-base w-full pl-9"
+            className="input-base w-full"
+            style={{ paddingLeft: '2.25rem' }}
           />
         </div>
 

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-09] - Application Guide, Search Icon Fix, Chooser Auth-Awareness
+
+- **New `/guide` page**: a standalone, unauthenticated walkthrough of the entire application for sharing with reviewers/new staff -- one section per role (Audience, Complaints, Moderator, Panel, Stage, Admin, Management), each with numbered steps and real screenshots captured from a live local run with seeded demo data. Sticky scroll-spy sidebar nav on desktop, horizontal pill nav on mobile, click-to-zoom lightbox on every screenshot, light/dark theme support. Screenshots live in `public/guide/`.
+- **Fixed the complaints dashboard search bar's icon overlapping the placeholder text**: `.input-base`'s own `padding` shorthand (defined in a custom `@layer utilities` block after Tailwind's generated utilities) was silently overriding the `pl-9` override at equal specificity -- the only place in the codebase combining the two. Fixed with an inline style on that one input, which can't be clobbered by layer ordering.
+- **`/root` chooser is now auth-aware**: a signed-in `management`-only account sees just a "Go to Dashboard" card (Ask/Raise aren't relevant to their role); a signed-in `admin` sees all three options, consistent with admin being a superset everywhere else in the app. A new subtle "Staff sign in" icon lets someone arriving via the shared QR code/link sign in right there, instead of needing to separately know about `/dashboard`'s own login.
+- **Complaints Dashboard's browser tab now reads "Complaints Dashboard"** (`document.title`), matching its on-page header.
+
 ## [2026-10-09] - Complaints Dashboard (Phase 2), True Multi-Role Support, Chooser Screen + Rollout Flag
 
 - **New `/dashboard` complaints management screen**, gated to the `admin` and new `management` roles: a mobile-friendly, fuzzy-searchable list (via `fuse.js`, matching on ticket number/name/phone) with status tabs, driving each complaint through a fixed 3-step workflow enforced both in the UI and server-side (`PATCH /api/complaints/:id/acknowledge|assign|resolve`) -- **categorize** (pick from a fixed set of categories) → **assign** (free-text name, e.g. "Raju - Electrician", not tied to a system account) → **resolve** (optional photo, uploaded via a signed Storage URL to a new `complaint-media` bucket, same pattern as event branding uploads). Each complaint's detail view shows a timeline with per-stage durations and a total "time taken" marker once resolved.
