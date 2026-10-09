@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Heart, ScrollText } from 'lucide-react';
+import { Heart, ScrollText, BookOpen } from 'lucide-react';
 
 interface FooterProps {
   /** Shows a small "Logs" link, admin-only -- everyone else never sees it. */
@@ -76,6 +76,10 @@ export const Footer: React.FC<FooterProps> = ({ isAdmin, logoUrl }) => {
               <Heart className="w-4 h-4 text-red-500 fill-red-500" />
               <span>{t('footer.forLiveEvents')}</span>
             </div>
+            <Link to="/guide" className="flex items-center gap-1 text-muted hover:text-secondary transition-colors text-xs">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Guide</span>
+            </Link>
             {isAdmin && (
               <Link to="/logs" className="flex items-center gap-1 text-muted hover:text-secondary transition-colors text-xs">
                 <ScrollText className="w-3.5 h-3.5" />

@@ -18,9 +18,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MessageSquare, MessageSquareWarning, LayoutDashboard, Sun, Moon, ChevronRight, ShieldCheck, LogOut } from 'lucide-react';
+import { MessageSquare, MessageSquareWarning, LayoutDashboard, Sun, Moon, ChevronRight, ShieldCheck, LogOut, BookOpen } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { supabase } from '../supabaseClient';
 
@@ -154,6 +154,15 @@ export const ChooserPage: React.FC = () => {
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <Link
+              to="/guide"
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-hover transition"
+              style={{ color: `rgb(var(--text-secondary))` }}
+              aria-label="Guide"
+              title="Guide"
+            >
+              <BookOpen className="w-5 h-5" />
+            </Link>
             {session ? (
               <button
                 onClick={handleLogout}

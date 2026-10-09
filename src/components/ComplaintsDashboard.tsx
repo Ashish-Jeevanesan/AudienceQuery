@@ -20,7 +20,7 @@ import type { Complaint, ComplaintStatus } from '../types';
 import { COMPLAINT_CATEGORIES } from '../types';
 import {
   ArrowLeft, ShieldAlert, RefreshCw, Search, Phone, Clock, Camera,
-  CheckCircle2, ClipboardList, UserPlus, X, Image as ImageIcon
+  CheckCircle2, ClipboardList, UserPlus, X, Image as ImageIcon, BookOpen
 } from 'lucide-react';
 
 const STATUS_LABEL: Record<ComplaintStatus, string> = {
@@ -252,14 +252,23 @@ export const ComplaintsDashboard: React.FC = () => {
             <Link to="/root" className="p-2.5 rounded-lg hover:bg-surface-hover text-secondary flex-shrink-0" title="Back to app"><ArrowLeft className="w-4 h-4" /></Link>
             <h1 className="text-base font-bold text-primary truncate">Complaints Dashboard</h1>
           </div>
-          <button
-            onClick={fetchComplaints}
-            disabled={loading}
-            title="Refresh"
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition disabled:opacity-60 flex-shrink-0"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              to="/guide"
+              title="Guide"
+              className="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+            >
+              <BookOpen className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={fetchComplaints}
+              disabled={loading}
+              title="Refresh"
+              className="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         <div className="relative">

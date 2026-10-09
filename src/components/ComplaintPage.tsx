@@ -18,7 +18,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { MessageSquareWarning, Send, Sun, Moon, Copy, Check, SearchCheck, ArrowLeft } from 'lucide-react';
+import { MessageSquareWarning, Send, Sun, Moon, Copy, Check, SearchCheck, ArrowLeft, BookOpen } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import type { ComplaintSubmissionResult, ComplaintLookupResult } from '../types';
 
@@ -163,6 +163,15 @@ export const ComplaintPage: React.FC = () => {
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <Link
+              to="/guide"
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface-hover transition"
+              style={{ color: `rgb(var(--text-secondary))` }}
+              aria-label="Guide"
+              title="Guide"
+            >
+              <BookOpen className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </header>

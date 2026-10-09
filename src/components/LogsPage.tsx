@@ -14,7 +14,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Search, RefreshCw, ArrowLeft, ShieldAlert, Pause, Play, ArrowDownToLine } from 'lucide-react';
+import { Search, RefreshCw, ArrowLeft, ShieldAlert, Pause, Play, ArrowDownToLine, BookOpen } from 'lucide-react';
 
 type LogLevel = 'INFO' | 'ERROR' | 'WARN' | 'DEBUG';
 interface LogEntry {
@@ -269,6 +269,13 @@ export const LogsPage: React.FC = () => {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          <Link
+            to="/guide"
+            title="Guide"
+            className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </header>
 
