@@ -117,10 +117,14 @@ export default function App() {
   const answeringCount = questions.filter(q => q.status === 'answering').length;
 
   // Access to each view is a per-role allow-list, not a single admin flag --
-  // panelist/stage accounts are restricted logins locked to their own view.
-  const canViewModerator = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
-  const canViewPanel = canViewModerator || currentUser?.role === 'panelist';
-  const canViewStage = canViewModerator || currentUser?.role === 'stage';
+  // a user can hold any combination of roles, so these check for ANY
+  // overlap rather than equality against one value. Panelist/stage-only
+  // accounts (no admin/moderator) are restricted logins locked to just the
+  // view(s) their roles grant.
+  const userRoles = currentUser?.roles ?? [];
+  const canViewModerator = userRoles.includes('admin') || userRoles.includes('moderator');
+  const canViewPanel = canViewModerator || userRoles.includes('panelist');
+  const canViewStage = canViewModerator || userRoles.includes('stage');
 
   // Panel/Stage only ever show questions belonging to the currently
   // selected event; the Moderator view still gets the full unfiltered list.
@@ -166,9 +170,14 @@ export default function App() {
     }
 
     setCurrentUser(user);
-    if (user.role === 'admin' || user.role === 'moderator') setActiveRole('moderator');
-    else if (user.role === 'panelist') setActiveRole('panel');
-    else if (user.role === 'stage') setActiveRole('stage');
+    // Multi-role: land on the highest-priority view this account can
+    // access (moderator beats panel beats stage) rather than assuming a
+    // single role. An account with no view-granting role at all (e.g.
+    // management-only, which only unlocks /dashboard) just stays on
+    // Audience, same as a logged-out visitor.
+    if (user.roles.includes('admin') || user.roles.includes('moderator')) setActiveRole('moderator');
+    else if (user.roles.includes('panelist')) setActiveRole('panel');
+    else if (user.roles.includes('stage')) setActiveRole('stage');
 
     setPassword('');
     setIsLoginOpen(false);
@@ -242,7 +251,7 @@ export default function App() {
                 conferenceEvent={conferenceEvent}
                 events={events}
                 users={users}
-                isAdmin={currentUser?.role === 'admin'}
+                isAdmin={userRoles.includes('admin')}
                 onUpdateStatus={updateStatus}
                 onEditQuestion={editQuestion}
                 onDeleteQuestion={deleteQuestion}
@@ -280,13 +289,17 @@ export default function App() {
           </>
         )}
       </main>
-      <Footer isAdmin={currentUser?.role === 'admin'} logoUrl={conferenceEvent.logoUrl} />
+      <Footer isAdmin={userRoles.includes('admin')} logoUrl={conferenceEvent.logoUrl} />
 
-      {/* Matches Header's mobile bottom nav bar (shown to the same
-          admin/moderator accounts) -- reserves space at the true bottom of
-          the page so the fixed bar never covers the tail end of the Footer.
-          Breakpoint must stay in sync with Header's own lg:hidden switch. */}
-      {canViewModerator && <div className="lg:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />}
+      {/* Matches Header's mobile bottom nav bar -- shown to admin/moderator
+          accounts (all 4 views) AND to a restricted account holding BOTH
+          panelist and stage (a 2-way switcher); reserves space at the true
+          bottom of the page so the fixed bar never covers the tail end of
+          the Footer. Breakpoint must stay in sync with Header's own
+          lg:hidden switch. */}
+      {(canViewModerator || (userRoles.includes('panelist') && userRoles.includes('stage'))) && (
+        <div className="lg:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
+      )}
 
       {isLoginOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">

@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import { translate } from 'google-translate-api-x';
-import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole } from './src/types.js';
+import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole, AppUser, Complaint, COMPLAINT_CATEGORIES } from './src/types.js';
 import { logger } from './src/logger.js';
 import { classifyQuestion } from './src/classify.js';
 
@@ -55,15 +55,18 @@ app.use(cookieParser());
 
 // --- Authentication & Authorization ---
 
-const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
+const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage', 'management'];
 
 /**
  * Middleware factory: verifies the caller is signed in via Supabase Auth AND
- * holds one of the given application roles. Roles are read from the `users`
- * table (the source of truth for access control), not from Supabase Auth's
- * `app_metadata` -- that field is only used once, by the migration's
- * one-time backfill, and is otherwise vestigial.
- * Attaches the resolved `{id, email, username, role}` row to `req.appUser`.
+ * holds AT LEAST ONE of the given application roles. A user can hold any
+ * combination of roles (many-to-many via `user_role_assignments`), so access
+ * is granted on overlap, not equality against a single value. Roles are read
+ * from `users`/`user_role_assignments` (the source of truth for access
+ * control), not from Supabase Auth's `app_metadata` -- that field is only
+ * used once, by the signup trigger's initial role grant, and is otherwise
+ * vestigial.
+ * Attaches the resolved `{id, email, username, roles}` row to `req.appUser`.
  */
 function requireRole(...allowedRoles: UserRole[]) {
   return async function (req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -77,21 +80,23 @@ function requireRole(...allowedRoles: UserRole[]) {
       return res.status(401).json({ error: 'Sign-in is required' });
     }
 
-    const { data: appUser, error: roleError } = await supabase
+    const { data: appUserRow, error: userError } = await supabase
       .from('users')
-      .select('id, email, username, role')
+      .select('id, email, username, user_role_assignments(role)')
       .eq('id', user.id)
       .single();
 
-    if (roleError || !appUser) {
+    if (userError || !appUserRow) {
       return res.status(403).json({ error: 'No application role is assigned to this account' });
     }
 
-    if (!allowedRoles.includes(appUser.role)) {
+    const roles = ((appUserRow as any).user_role_assignments || []).map((r: any) => r.role) as UserRole[];
+
+    if (roles.length === 0 || !roles.some(r => allowedRoles.includes(r))) {
       return res.status(403).json({ error: 'You do not have permission to perform this action' });
     }
 
-    (req as any).appUser = appUser;
+    (req as any).appUser = { id: appUserRow.id, email: appUserRow.email, username: appUserRow.username, roles };
     next();
   };
 }
@@ -101,6 +106,10 @@ function requireRole(...allowedRoles: UserRole[]) {
 const requireAdmin = requireRole('admin', 'moderator');
 const requireAdminOnly = requireRole('admin');
 const requireAuth = requireRole(...ALL_ROLES);
+// The /dashboard complaints manager: admin always has access (per the
+// user's explicit request), plus the new `management` role, which grants
+// no access to Moderator/Panel/Stage.
+const requireDashboard = requireRole('admin', 'management');
 
 /**
  * Helper: Validate session ID format consistently across all endpoints.
@@ -220,7 +229,28 @@ async function getEventByJoinCode(joinCode: string | undefined | null): Promise<
  */
 app.get('/api/me', requireAuth, (req, res) => {
   const appUser = (req as any).appUser;
-  res.json({ id: appUser.id, email: appUser.email, username: appUser.username, role: appUser.role });
+  res.json({ id: appUser.id, email: appUser.email, username: appUser.username, roles: appUser.roles });
+});
+
+/**
+ * @route GET /api/rules/prod-release
+ * @description Public flag the frontend router checks to decide where bare
+ * `/` (and any unrecognized path) goes: the existing Ask-a-Question flow at
+ * /ask while this is 'N' (the default -- what every already-shared link/QR
+ * code expects), or the new chooser screen at /root once flipped to 'Y'
+ * directly in Supabase. /root stays reachable by direct link regardless.
+ */
+app.get('/api/rules/prod-release', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('rules').select('value').eq('key', 'prod_release').maybeSingle();
+    if (error) throw error;
+    res.json({ prodRelease: data?.value === 'Y' });
+  } catch (error: any) {
+    logger.error('Error fetching prod_release rule', error);
+    // Fail safe to the pre-rollout behavior rather than surfacing an error
+    // on the very first page load.
+    res.json({ prodRelease: false });
+  }
 });
 
 /**
@@ -535,6 +565,320 @@ app.post('/api/questions', async (req, res) => {
   }
 });
 
+// --- Complaints Portal (public, global, not event-scoped) ---
+
+/** Short reference code (e.g. CMP-9F3A2B1C) returned to an anonymous submitter so they have something to reference later -- no account, no login. */
+function generateTicketNumber(): string {
+  return `CMP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+/**
+ * Keeps only digits and a single leading '+', so the stored value is ready
+ * to dial or message (e.g. a future WhatsApp status-update integration)
+ * without further cleanup. Returns null if the digit count isn't a
+ * plausible phone number (E.164 allows up to 15 digits).
+ */
+function normalizePhone(raw: string): string | null {
+  const trimmed = raw.trim();
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return hasPlus ? `+${digits}` : digits;
+}
+
+/**
+ * @route POST /api/complaints
+ * @description Public, unauthenticated complaint submission -- no
+ * sessionId and no event required (a single global complaint box, unlike
+ * questions). Returns a ticket_number for the submitter to reference later;
+ * there is no "my complaints" view yet, so this is the only handle they get
+ * until the separate management dashboard (phase 2) exists.
+ */
+app.post('/api/complaints', async (req, res) => {
+  const { name, phone, complaintText } = req.body as { name?: string; phone?: string; complaintText?: string };
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  if (name.trim().length > 200) {
+    return res.status(400).json({ error: 'Name is too long' });
+  }
+  if (!phone || !phone.trim()) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ error: 'Please enter a valid phone number' });
+  }
+  if (!complaintText || !complaintText.trim()) {
+    return res.status(400).json({ error: 'Complaint details are required' });
+  }
+  if (complaintText.trim().length > 2000) {
+    return res.status(400).json({ error: 'Complaint is too long (max 2000 characters)' });
+  }
+
+  const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const ticketNumber = generateTicketNumber();
+
+  try {
+    const { data, error } = await supabase
+      .from('complaints')
+      .insert({
+        ticket_number: ticketNumber,
+        name: name.trim(),
+        phone: normalizedPhone,
+        complaint_text: complaintText.trim(),
+        network_info: { ipAddress, userAgent: req.headers['user-agent'] || 'unknown' }
+      })
+      .select('id, ticket_number, created_at')
+      .single();
+
+    if (error) {
+      logger.error('Supabase complaint insert error', error);
+      throw error;
+    }
+
+    logger.info('Complaint submitted', { complaintId: data.id, ticketNumber: data.ticket_number });
+    res.status(201).json({ id: data.id, ticketNumber: data.ticket_number, createdAt: data.created_at });
+  } catch (error: any) {
+    logger.error('Error submitting complaint', error);
+    res.status(500).json({ error: error.message || 'Failed to submit complaint' });
+  }
+});
+
+/** Maps a Supabase `complaints` row to the camelCase shape the /dashboard frontend expects. */
+function mapComplaintRow(row: any): Complaint {
+  return {
+    id: row.id,
+    ticketNumber: row.ticket_number,
+    name: row.name,
+    phone: row.phone,
+    complaintText: row.complaint_text,
+    status: row.status,
+    category: row.category || undefined,
+    assignedTo: row.assigned_to || undefined,
+    resolutionPhotoUrl: row.resolution_photo_url || undefined,
+    createdAt: row.created_at,
+    acknowledgedAt: row.acknowledged_at || undefined,
+    assignedAt: row.assigned_at || undefined,
+    resolvedAt: row.resolved_at || undefined
+  };
+}
+
+/**
+ * @route GET /api/complaints/lookup
+ * @description Public, unauthenticated status check for the anonymous
+ * submitter -- requires BOTH the ticket number and the phone number used at
+ * submission, so a guessed/leaked ticket number alone can't reveal another
+ * person's complaint. Returns a narrower shape than the dashboard's
+ * `Complaint` (no internal notes, no raw name).
+ */
+app.get('/api/complaints/lookup', async (req, res) => {
+  const ticket = ((req.query.ticket as string) || '').trim().toUpperCase();
+  const normalizedPhone = normalizePhone((req.query.phone as string) || '');
+
+  if (!ticket || !normalizedPhone) {
+    return res.status(400).json({ error: 'Reference number and phone number are required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('ticket_number', ticket)
+      .eq('phone', normalizedPhone)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: 'No complaint found for that reference number and phone number.' });
+    }
+
+    const mapped = mapComplaintRow(data);
+    res.json({
+      ticketNumber: mapped.ticketNumber,
+      status: mapped.status,
+      category: mapped.category,
+      assignedTo: mapped.assignedTo,
+      resolutionPhotoUrl: mapped.resolutionPhotoUrl,
+      createdAt: mapped.createdAt,
+      acknowledgedAt: mapped.acknowledgedAt,
+      assignedAt: mapped.assignedAt,
+      resolvedAt: mapped.resolvedAt
+    });
+  } catch (error: any) {
+    logger.error('Error looking up complaint', error);
+    res.status(500).json({ error: error.message || 'Failed to look up complaint' });
+  }
+});
+
+/**
+ * @route GET /api/complaints
+ * @description Lists every non-deleted complaint for the /dashboard
+ * management view. SECURITY: admin or management role required.
+ */
+app.get('/api/complaints', requireDashboard, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json((data || []).map(mapComplaintRow));
+  } catch (error: any) {
+    logger.error('Error fetching complaints', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch complaints' });
+  }
+});
+
+/**
+ * @route PATCH /api/complaints/:id/acknowledge
+ * @description Workflow step 1: categorize the complaint. SECURITY: admin
+ * or management role required.
+ */
+app.patch('/api/complaints/:id/acknowledge', requireDashboard, async (req, res) => {
+  const { id } = req.params;
+  const { category } = req.body as { category?: string };
+  const validCategories = COMPLAINT_CATEGORIES.map(c => c.value);
+
+  if (!category || !validCategories.includes(category as any)) {
+    return res.status(400).json({ error: 'A valid category is required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('complaints')
+      .update({ category, status: 'acknowledged', acknowledged_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('is_deleted', false)
+      .select('*')
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Complaint not found' });
+
+    logger.info('Complaint acknowledged', { complaintId: id, category });
+    res.json(mapComplaintRow(data));
+  } catch (error: any) {
+    logger.error('Error acknowledging complaint', error);
+    res.status(500).json({ error: error.message || 'Failed to acknowledge complaint' });
+  }
+});
+
+/**
+ * @route PATCH /api/complaints/:id/assign
+ * @description Workflow step 2: assign to a (free-text) name. Requires the
+ * complaint to already be categorized. SECURITY: admin or management role
+ * required.
+ */
+app.patch('/api/complaints/:id/assign', requireDashboard, async (req, res) => {
+  const { id } = req.params;
+  const { assignedTo } = req.body as { assignedTo?: string };
+
+  if (!assignedTo || !assignedTo.trim()) {
+    return res.status(400).json({ error: 'An assignee name is required' });
+  }
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('complaints').select('category, is_deleted').eq('id', id).single();
+    if (fetchError || !existing || existing.is_deleted) {
+      return res.status(404).json({ error: 'Complaint not found' });
+    }
+    if (!existing.category) {
+      return res.status(400).json({ error: 'Categorize this complaint before assigning it' });
+    }
+
+    const { data, error } = await supabase
+      .from('complaints')
+      .update({ assigned_to: assignedTo.trim(), status: 'assigned', assigned_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Complaint not found' });
+
+    logger.info('Complaint assigned', { complaintId: id, assignedTo: assignedTo.trim() });
+    res.json(mapComplaintRow(data));
+  } catch (error: any) {
+    logger.error('Error assigning complaint', error);
+    res.status(500).json({ error: error.message || 'Failed to assign complaint' });
+  }
+});
+
+/**
+ * @route POST /api/complaints/:id/photo/signed-upload
+ * @description Issues a short-lived signed Storage upload URL for an
+ * optional "resolved" photo. SECURITY: admin or management role required.
+ */
+app.post('/api/complaints/:id/photo/signed-upload', requireDashboard, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('complaints').select('id').eq('id', id).eq('is_deleted', false).single();
+    if (fetchError || !existing) return res.status(404).json({ error: 'Complaint not found' });
+
+    const path = `${id}/resolution-${Date.now()}.jpg`;
+    const { data, error } = await supabase.storage.from('complaint-media').createSignedUploadUrl(path);
+    if (error) throw error;
+
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error creating signed upload URL for complaint photo', error);
+    res.status(500).json({ error: error.message || 'Failed to create signed upload URL' });
+  }
+});
+
+/**
+ * @route PATCH /api/complaints/:id/resolve
+ * @description Workflow step 3 (final): mark resolved, with an optional
+ * photo (already uploaded via the signed-upload endpoint above). Requires
+ * the complaint to already be assigned. SECURITY: admin or management role
+ * required.
+ */
+app.patch('/api/complaints/:id/resolve', requireDashboard, async (req, res) => {
+  const { id } = req.params;
+  const { photoPath } = req.body as { photoPath?: string };
+
+  if (photoPath && !photoPath.startsWith(`${id}/`)) {
+    return res.status(400).json({ error: 'Path mismatch' });
+  }
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('complaints').select('assigned_to, is_deleted').eq('id', id).single();
+    if (fetchError || !existing || existing.is_deleted) {
+      return res.status(404).json({ error: 'Complaint not found' });
+    }
+    if (!existing.assigned_to) {
+      return res.status(400).json({ error: 'Assign this complaint before resolving it' });
+    }
+
+    const updateData: any = { status: 'resolved', resolved_at: new Date().toISOString() };
+    if (photoPath) {
+      const { data: { publicUrl } } = supabase.storage.from('complaint-media').getPublicUrl(photoPath);
+      updateData.resolution_photo_url = `${publicUrl}?v=${Date.now()}`;
+    }
+
+    const { data, error } = await supabase
+      .from('complaints')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Complaint not found' });
+
+    logger.info('Complaint resolved', { complaintId: id, hasPhoto: !!photoPath });
+    res.json(mapComplaintRow(data));
+  } catch (error: any) {
+    logger.error('Error resolving complaint', error);
+    res.status(500).json({ error: error.message || 'Failed to resolve complaint' });
+  }
+});
 
 /**
  * @route PATCH /api/questions/:id/status
@@ -1075,21 +1419,31 @@ app.delete('/api/events/:id', requireAdminOnly, async (req, res) => {
 
 
 
+/** Maps a `users` row (with its embedded `user_role_assignments`) to the camelCase shape the frontend expects. */
+function mapUserRow(row: any): AppUser {
+  return {
+    id: row.id,
+    email: row.email,
+    username: row.username,
+    roles: (row.user_role_assignments || []).map((r: any) => r.role)
+  };
+}
+
 /**
  * @route GET /api/users
- * @description Lists every user with their role, for the admin-only "Manage
- * Users" screen.
+ * @description Lists every user with their roles, for the admin-only
+ * "Manage Users" screen.
  * SECURITY: Requires admin role (moderators cannot manage other users' roles).
  */
 app.get('/api/users', requireAdminOnly, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, username, role')
+      .select('id, email, username, user_role_assignments(role)')
       .order('email', { ascending: true });
 
     if (error) throw error;
-    res.json(data || []);
+    res.json((data || []).map(mapUserRow));
   } catch (error: any) {
     console.error('Error fetching users from Supabase:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch users' });
@@ -1098,35 +1452,34 @@ app.get('/api/users', requireAdminOnly, async (req, res) => {
 
 /**
  * @route PATCH /api/users/:id
- * @description Updates a user's username and/or role. Guards against ever
- * removing the last remaining admin (a self-lockout footgun this system has
- * no other recovery path for).
+ * @description Updates a user's username and/or full set of roles (a user
+ * may hold any combination -- `roles` replaces the set entirely, it isn't
+ * merged). Guards against ever removing the last remaining admin (a
+ * self-lockout footgun this system has no other recovery path for).
  * SECURITY: Requires admin role.
  */
 app.patch('/api/users/:id', requireAdminOnly, async (req, res) => {
   const { id } = req.params;
-  const { role, username } = req.body;
+  const { roles, username } = req.body as { roles?: string[]; username?: string };
 
   try {
-    if (role !== undefined) {
-      if (!ALL_ROLES.includes(role)) {
-        return res.status(400).json({ error: 'Invalid role' });
+    if (roles !== undefined) {
+      if (!Array.isArray(roles) || roles.length === 0 || roles.some(r => !ALL_ROLES.includes(r as UserRole))) {
+        return res.status(400).json({ error: 'At least one valid role is required' });
       }
 
-      const { data: target, error: targetError } = await supabase
-        .from('users')
+      const { data: targetRoles, error: targetError } = await supabase
+        .from('user_role_assignments')
         .select('role')
-        .eq('id', id)
-        .single();
+        .eq('user_id', id);
 
-      if (targetError || !target) {
-        return res.status(404).json({ error: 'User not found' });
-      }
+      if (targetError) throw targetError;
+      const hadAdmin = (targetRoles || []).some(r => r.role === 'admin');
 
-      if (target.role === 'admin' && role !== 'admin') {
+      if (hadAdmin && !roles.includes('admin')) {
         const { count, error: countError } = await supabase
-          .from('users')
-          .select('id', { count: 'exact', head: true })
+          .from('user_role_assignments')
+          .select('user_id', { count: 'exact', head: true })
           .eq('role', 'admin');
 
         if (countError) throw countError;
@@ -1134,24 +1487,38 @@ app.patch('/api/users/:id', requireAdminOnly, async (req, res) => {
           return res.status(400).json({ error: 'Cannot remove the last remaining admin.' });
         }
       }
+
+      // Replace the role set wholesale: simplest correct way to go from
+      // "whatever it was" to "exactly this array" without reasoning about
+      // which individual roles were added/removed.
+      const { error: deleteError } = await supabase.from('user_role_assignments').delete().eq('user_id', id);
+      if (deleteError) throw deleteError;
+
+      const { error: insertError } = await supabase
+        .from('user_role_assignments')
+        .insert(roles.map(role => ({ user_id: id, role })));
+      if (insertError) throw insertError;
     }
 
-    const updateData: any = {};
-    if (role !== undefined) updateData.role = role;
-    if (username !== undefined) updateData.username = username?.trim() || null;
+    if (username !== undefined) {
+      const { error: usernameError } = await supabase
+        .from('users')
+        .update({ username: username?.trim() || null })
+        .eq('id', id);
+      if (usernameError) throw usernameError;
+    }
 
     const { data: updatedUser, error } = await supabase
       .from('users')
-      .update(updateData)
+      .select('id, email, username, user_role_assignments(role)')
       .eq('id', id)
-      .select('id, email, username, role')
       .single();
 
     if (error || !updatedUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json(updatedUser);
+    res.json(mapUserRow(updatedUser));
   } catch (error: any) {
     console.error('Error updating user in Supabase:', error);
     res.status(500).json({ error: error.message || 'Failed to update user' });

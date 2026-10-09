@@ -11,7 +11,7 @@ import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, Qu
 import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 
-const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage'];
+const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage', 'management'];
 
 /** Converts an ISO timestamp to the local-time value a `datetime-local` input expects ("YYYY-MM-DDTHH:mm"). */
 function toDatetimeLocalValue(iso?: string): string {
@@ -50,7 +50,7 @@ interface ModeratorViewProps {
   onDeleteEventMedia: (eventId: string, kind: 'logo' | 'banner', slot?: 1 | 2 | 3) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
   onFetchUsers: () => void;
-  onUpdateUser: (id: string, data: { role?: string; username?: string }) => Promise<void>;
+  onUpdateUser: (id: string, data: { roles?: string[]; username?: string }) => Promise<void>;
   onTranslateText: (text: string, targets: ('hi' | 'or')[]) => Promise<Partial<Record<'hi' | 'or', string>>>;
 }
 
@@ -191,7 +191,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
   // Users drawer state (admin only)
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [userEditDraft, setUserEditDraft] = useState<{ role: UserRole; username: string }>({ role: 'panelist', username: '' });
+  const [userEditDraft, setUserEditDraft] = useState<{ roles: UserRole[]; username: string }>({ roles: ['panelist'], username: '' });
   const [userEditError, setUserEditError] = useState('');
   const [savingUserEdit, setSavingUserEdit] = useState(false);
 
@@ -396,8 +396,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
 
   const openUserEdit = (u: AppUser) => {
     setEditingUserId(u.id);
-    setUserEditDraft({ role: u.role, username: u.username || '' });
+    setUserEditDraft({ roles: u.roles.length > 0 ? u.roles : ['panelist'], username: u.username || '' });
     setUserEditError('');
+  };
+
+  const toggleDraftRole = (role: UserRole) => {
+    setUserEditDraft(d => {
+      const has = d.roles.includes(role);
+      // A user must always hold at least one role -- block unchecking the
+      // last remaining one rather than silently saving an empty set.
+      if (has && d.roles.length === 1) return d;
+      return { ...d, roles: has ? d.roles.filter(r => r !== role) : [...d.roles, role] };
+    });
   };
 
   const saveUserEdit = async () => {
@@ -928,7 +938,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       <p className="text-xs text-muted truncate">{u.email}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold cat-badge-indigo capitalize">{u.role}</span>
+                      <div className="flex flex-wrap gap-1 justify-end max-w-[160px]">
+                        {u.roles.map(r => (
+                          <span key={r} className="px-2 py-0.5 rounded-full text-[11px] font-bold cat-badge-indigo capitalize">{r}</span>
+                        ))}
+                      </div>
                       <button
                         onClick={() => openUserEdit(u)}
                         className="p-3 rounded-lg bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider transition"
@@ -948,15 +962,22 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         placeholder="Username"
                         className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-primary bg-transparent outline-none focus:border-indigo-500"
                       />
-                      <select
-                        value={userEditDraft.role}
-                        onChange={(e) => setUserEditDraft(d => ({ ...d, role: e.target.value as UserRole }))}
-                        className="w-full px-3 py-2 rounded-xl border border-divider text-xs text-secondary bg-surface"
-                      >
+                      {/* A user can hold any combination of roles -- checkboxes,
+                          not a single-select dropdown. At least one must stay
+                          checked (enforced in toggleDraftRole). */}
+                      <div className="grid grid-cols-2 gap-1.5">
                         {ALL_ROLES.map(r => (
-                          <option key={r} value={r}>{r}</option>
+                          <label key={r} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-divider text-xs text-secondary capitalize cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={userEditDraft.roles.includes(r)}
+                              onChange={() => toggleDraftRole(r)}
+                              className="w-3.5 h-3.5"
+                            />
+                            {r}
+                          </label>
                         ))}
-                      </select>
+                      </div>
                       {userEditError && (
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
                           <AlertCircle className="w-3.5 h-3.5" /> {userEditError}

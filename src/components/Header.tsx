@@ -51,11 +51,22 @@ export const Header: React.FC<HeaderProps> = ({
     stage: t('header.stageView')
   };
 
-  // Admin/moderator freely switch among all 4 views, exactly as before.
-  // Panelist/Stage are dedicated restricted logins -- they never see a tab
-  // switcher at all, only their own locked-in view.
-  const canSwitchViews = currentUser?.role === 'admin' || currentUser?.role === 'moderator';
-  const isLockedRole = currentUser?.role === 'panelist' || currentUser?.role === 'stage';
+  // A user can hold any combination of roles. Admin/moderator (in any
+  // combination with anything else) still freely switch among all 4 views,
+  // exactly as before. An account with ONLY panelist and/or stage (no
+  // admin/moderator) is restricted to just the view(s) those roles grant --
+  // a single such role behaves exactly as before (one locked-in view, no
+  // switcher at all); holding both now shows a small 2-way switcher instead
+  // of forcing a choice at login time.
+  const userRoles = currentUser?.roles ?? [];
+  const canSwitchViews = userRoles.includes('admin') || userRoles.includes('moderator');
+  const restrictedViews: ViewRole[] = canSwitchViews
+    ? []
+    : [
+        ...(userRoles.includes('panelist') ? (['panel'] as ViewRole[]) : []),
+        ...(userRoles.includes('stage') ? (['stage'] as ViewRole[]) : [])
+      ];
+  const isLockedRole = restrictedViews.length > 0;
   const [isDark, setIsDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -138,10 +149,19 @@ export const Header: React.FC<HeaderProps> = ({
             {/* CENTER: Navigation Tabs */}
             <nav className="flex items-center gap-2 flex-shrink-0">
               {isLockedRole ? (
-                <span className={getTabClass(activeRole)} style={activeStyle}>
-                  {activeRole === 'panel' ? <Mic className="w-4 h-4" style={activeIconStyle} /> : <Monitor className="w-4 h-4" style={activeIconStyle} />}
-                  <span>{roleLabels[currentUser!.role]}</span>
-                </span>
+                restrictedViews.length > 1 ? (
+                  restrictedViews.map(view => (
+                    <button key={view} onClick={() => setActiveRole(view)} className={getTabClass(view)} style={activeRole === view ? activeStyle : {}}>
+                      {view === 'panel' ? <Mic className="w-4 h-4" style={activeRole === view ? activeIconStyle : {}} /> : <Monitor className="w-4 h-4" style={activeRole === view ? activeIconStyle : {}} />}
+                      <span>{view === 'panel' ? t('header.panel') : t('header.stage')}</span>
+                    </button>
+                  ))
+                ) : (
+                  <span className={getTabClass(activeRole)} style={activeStyle}>
+                    {activeRole === 'panel' ? <Mic className="w-4 h-4" style={activeIconStyle} /> : <Monitor className="w-4 h-4" style={activeIconStyle} />}
+                    <span>{roleLabels[restrictedViews[0] === 'panel' ? 'panelist' : 'stage']}</span>
+                  </span>
+                )
               ) : (
                 <>
                   <button onClick={() => setActiveRole('audience')} className={getTabClass('audience')} style={activeRole === 'audience' ? activeStyle : {}}>
@@ -267,8 +287,8 @@ export const Header: React.FC<HeaderProps> = ({
                     className="max-w-[150px] text-[11px]"
                   />
                 )}
-                {isLockedRole && (
-                  <p className="text-[11px] font-semibold truncate" style={{ color: `rgb(var(--primary))` }}>{roleLabels[currentUser!.role]}</p>
+                {isLockedRole && restrictedViews.length === 1 && (
+                  <p className="text-[11px] font-semibold truncate" style={{ color: `rgb(var(--primary))` }}>{roleLabels[restrictedViews[0] === 'panel' ? 'panelist' : 'stage']}</p>
                 )}
               </div>
             </div>
@@ -356,12 +376,12 @@ export const Header: React.FC<HeaderProps> = ({
           only reserves space at the top of the page, not at the actual
           bottom of the scrollable content, so it would still let this
           fixed bar cover the last ~64px of the Footer on a long page. */}
-      {canSwitchViews && (
+      {(canSwitchViews || restrictedViews.length > 1) && (
         <nav
           className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-divider flex"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
-          {BOTTOM_NAV_ITEMS.map(item => {
+          {(canSwitchViews ? BOTTOM_NAV_ITEMS : BOTTOM_NAV_ITEMS.filter(item => restrictedViews.includes(item.role))).map(item => {
             const isActive = activeRole === item.role;
             return (
               <button

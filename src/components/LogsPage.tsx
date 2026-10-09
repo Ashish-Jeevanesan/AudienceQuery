@@ -90,7 +90,7 @@ export const LogsPage: React.FC = () => {
     }
     try {
       const res = await fetch('/api/me', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      setIsAdmin(res.ok ? (await res.json()).role === 'admin' : false);
+      setIsAdmin(res.ok ? ((await res.json()).roles || []).includes('admin') : false);
     } catch {
       setIsAdmin(false);
     }
@@ -195,7 +195,7 @@ export const LogsPage: React.FC = () => {
           </label>
           {loginError && <p className="mt-3 text-sm text-rose-600">{loginError}</p>}
           <div className="mt-5 flex justify-between items-center">
-            <Link to="/" className="text-sm text-secondary hover:text-primary flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back to app</Link>
+            <Link to="/root" className="text-sm text-secondary hover:text-primary flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back to app</Link>
             <button disabled={isLoggingIn} type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isLoggingIn ? 'Signing in…' : 'Sign in'}</button>
           </div>
         </form>
@@ -213,7 +213,7 @@ export const LogsPage: React.FC = () => {
         <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto" />
         <h2 className="text-lg font-bold text-primary">Admins only</h2>
         <p className="text-sm text-secondary">Your account doesn't have access to this page.</p>
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-indigo-500 hover:underline"><ArrowLeft className="w-4 h-4" /> Back to app</Link>
+        <Link to="/root" className="inline-flex items-center gap-1 text-sm text-indigo-500 hover:underline"><ArrowLeft className="w-4 h-4" /> Back to app</Link>
       </CenteredShell>
     );
   }
@@ -222,7 +222,7 @@ export const LogsPage: React.FC = () => {
     <div className="min-h-screen text-primary font-sans">
       <header className="sticky top-0 z-10 bg-surface border-b border-divider px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/" className="p-3 rounded-lg hover:bg-surface-hover text-secondary" title="Back to app"><ArrowLeft className="w-4 h-4" /></Link>
+          <Link to="/root" className="p-3 rounded-lg hover:bg-surface-hover text-secondary" title="Back to app"><ArrowLeft className="w-4 h-4" /></Link>
           <h1 className="text-base font-bold text-primary">Application Logs</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

@@ -2,6 +2,12 @@
 
 Things that have been flagged during development but intentionally not acted on yet — either awaiting an explicit go-ahead, or noted as optional follow-ups. Ask "any to-do remaining?" any time to get a status check against this list.
 
+## Complaints portal -- remaining follow-ups
+
+- **WhatsApp status-update notifications** (e.g. "your complaint CMP-XXXX is now in progress"): feasible, but needs a WhatsApp Business/Cloud API account (or a provider like Twilio) set up and message templates approved on the business side first — a prerequisite outside this codebase, not a code blocker. `complaints.phone` is already stored normalized (digits + optional leading `+`) for exactly this.
+- **`internal_notes` column is still unused.** The dashboard's 3-step workflow (categorize → assign → resolve) didn't end up needing it, but it's there if a "leave a note without changing status" action is wanted later.
+- **Rollout flag**: `rules.prod_release` is `'N'` as of 2026-10-09 — bare `/` still goes to `/ask`, not the new `/root` chooser. Flip it to `'Y'` in Supabase when ready to point existing QR codes/links at the chooser instead.
+
 ## In progress — resume when Gemini Implementer is back
 
 - **Auto-select a question's category via Gemini, instead of the audience picking one manually.** Frontend half is done: the "Topic (optional)" picker and its state are removed from `AudienceView.tsx`, and `categoryId` is gone from `submitQuestion`'s signature in `useRealTimeQnA.ts` — the client no longer sends one at all. Server half is broken and needs a real fix, not a re-report:

@@ -767,5 +767,239 @@ REVOKE EXECUTE ON FUNCTION handle_new_auth_user() FROM PUBLIC;
 ALTER FUNCTION update_updated_at_column() SET search_path = public;
 
 -- ============================================================================
+-- 20. MIGRATION (2026-10-08): Complaints portal
+-- ============================================================================
+-- A standalone, global (not event-scoped), unauthenticated complaint
+-- submission form at /complain. Deliberately separate from `questions` --
+-- different lifecycle, different submitter-identifying fields (name +
+-- phone, since a complaint needs to be followed up on), and will get its
+-- own management login down the line (a future, separate admin surface --
+-- not the existing admin/moderator/panelist/stage roles).
+--
+-- `ticket_number` is returned to the submitter immediately (no account, no
+-- login) so they have something to reference later -- and is exactly the
+-- handle a future WhatsApp status-update integration would quote back to
+-- them. `status`/`assigned_to`/`internal_notes`/`resolved_at` are included
+-- now even though nothing reads/writes them yet, so the management
+-- dashboard (phase 2) doesn't need its own migration just to add a status
+-- column to a live table full of real complaints.
+CREATE TABLE IF NOT EXISTS complaints (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_number TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  complaint_text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'assigned', 'in_progress', 'resolved', 'closed')),
+  assigned_to TEXT,
+  internal_notes TEXT,
+  device_info JSONB,
+  network_info JSONB,
+  is_deleted BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
+CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_complaints_is_deleted ON complaints(is_deleted);
+
+DROP TRIGGER IF EXISTS update_complaints_updated_at ON complaints;
+CREATE TRIGGER update_complaints_updated_at BEFORE UPDATE ON complaints
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS: enabled, deliberately NO permissive policies (default-deny), same
+-- posture as `events`/`users`. The public /complain form is unauthenticated
+-- by design, but that's enforced by server.ts's POST /api/complaints
+-- endpoint (which validates and normalizes input before writing) via the
+-- service-role client -- never by a client-side supabase.from('complaints')
+-- call, which would also skip validation entirely. A permissive insert
+-- policy here would let anyone write arbitrary rows directly via
+-- PostgREST, bypassing that validation.
+ALTER TABLE complaints ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE complaints IS 'Public, unauthenticated complaint submissions from /complain. Global, not tied to any event.';
+COMMENT ON COLUMN complaints.ticket_number IS 'Short reference code (e.g. CMP-XXXXXXXX) returned to the submitter so they can reference this complaint later with no login.';
+COMMENT ON COLUMN complaints.phone IS 'Normalized to digits with an optional leading +, so it can be dialed/messaged (e.g. WhatsApp) as-is later.';
+COMMENT ON COLUMN complaints.status IS 'Complaint lifecycle: open, assigned, in_progress, resolved, closed. Not yet surfaced in any UI -- reserved for the future management dashboard.';
+COMMENT ON COLUMN complaints.assigned_to IS 'Reserved for the future management dashboard -- not populated or read anywhere yet.';
+
+-- ============================================================================
+-- 21. MIGRATION (2026-10-09): Complaints Portal, Phase 2 -- management role,
+-- workflow columns, resolution photo storage
+-- ============================================================================
+-- Adds the `management` role (assignable by an admin via the existing
+-- "Manage Users" drawer), which grants access to a new /dashboard view
+-- ALONGSIDE admin -- it is not a superset or subset of the other 4 roles,
+-- it only unlocks this one surface. Also adds the columns the dashboard's
+-- 3-step workflow needs (acknowledge/categorize -> assign -> resolve) and a
+-- Storage bucket for the optional "resolved" photo.
+INSERT INTO user_roles (name) VALUES ('management') ON CONFLICT (name) DO NOTHING;
+
+-- handle_new_auth_user's safe_role allow-list (defined in migration 12) must
+-- include the new role, otherwise a signup with
+-- raw_app_meta_data.role = 'management' would be silently downgraded to
+-- 'panelist' by the existing CASE's ELSE fallback.
+CREATE OR REPLACE FUNCTION handle_new_auth_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  requested_role TEXT;
+  safe_role TEXT;
+BEGIN
+  requested_role := NEW.raw_app_meta_data->>'role';
+
+  safe_role := CASE
+    WHEN requested_role IN ('admin', 'moderator', 'panelist', 'stage', 'management') THEN requested_role
+    ELSE 'panelist'
+  END;
+
+  INSERT INTO public.users (id, email, username, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+    safe_role
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Status CHECK tightened to exactly the 4 stages the dashboard workflow
+-- uses -- 'in_progress'/'closed' (from the original migration 20 CHECK)
+-- were never written by any code and don't match the described workflow
+-- (open -> acknowledged -> assigned -> resolved).
+ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_status_check;
+ALTER TABLE complaints ADD CONSTRAINT complaints_status_check
+  CHECK (status IN ('open', 'acknowledged', 'assigned', 'resolved'));
+
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS resolution_photo_url TEXT;
+
+COMMENT ON COLUMN complaints.category IS 'Set at the acknowledgment step (the first workflow action) -- one of a fixed set of categories (see COMPLAINT_CATEGORIES in src/types.ts), validated server-side.';
+COMMENT ON COLUMN complaints.acknowledged_at IS 'When a management/admin user categorized this complaint -- the first workflow step.';
+COMMENT ON COLUMN complaints.assigned_at IS 'When this complaint was assigned to a (free-text) name -- the second workflow step.';
+COMMENT ON COLUMN complaints.resolution_photo_url IS 'Optional public Storage URL of a photo uploaded when marking the complaint resolved -- the final workflow step.';
+
+-- Storage bucket for resolution photos. Same posture as event-media: public
+-- read (so the public status-lookup page can show proof of resolution),
+-- but no INSERT/UPDATE/DELETE policies on storage.objects -- all writes go
+-- through the server's service-role client via a signed upload URL, never
+-- directly from a client.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('complaint-media', 'complaint-media', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- 22. MIGRATION (2026-10-09): True multi-role support
+-- ============================================================================
+-- Replaces the single `users.role` column with a proper many-to-many
+-- `user_role_assignments` table -- a user can now hold any combination of
+-- admin/moderator/panelist/stage/management (e.g. moderator + management,
+-- without needing to be made a full admin). server.ts's requireRole() now
+-- checks for ANY overlap between a user's assigned roles and an endpoint's
+-- allowed roles, instead of equality against a single value.
+CREATE TABLE IF NOT EXISTS user_role_assignments (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL REFERENCES user_roles(name),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  PRIMARY KEY (user_id, role)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_role_assignments_user_id ON user_role_assignments(user_id);
+
+-- Backfill: one row per existing user's single role. Guarded so it's safe
+-- to re-run even after `users.role` has already been dropped below.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role') THEN
+    INSERT INTO user_role_assignments (user_id, role)
+    SELECT id, role FROM users WHERE role IS NOT NULL
+    ON CONFLICT DO NOTHING;
+  END IF;
+END $$;
+
+-- RLS: enabled, deliberately no permissive policies (default-deny), same
+-- posture as `users` -- only the server's service-role client reads/writes
+-- this table.
+ALTER TABLE user_role_assignments ENABLE ROW LEVEL SECURITY;
+
+-- The signup trigger now grants exactly one starting role (from
+-- raw_app_meta_data, same sanitization as before) via the assignments
+-- table instead of a `users.role` column. Additional roles are granted
+-- later by an admin via "Manage Users".
+CREATE OR REPLACE FUNCTION handle_new_auth_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  requested_role TEXT;
+  safe_role TEXT;
+BEGIN
+  requested_role := NEW.raw_app_meta_data->>'role';
+
+  safe_role := CASE
+    WHEN requested_role IN ('admin', 'moderator', 'panelist', 'stage', 'management') THEN requested_role
+    ELSE 'panelist'
+  END;
+
+  INSERT INTO public.users (id, email, username)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1))
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.user_role_assignments (user_id, role)
+  VALUES (NEW.id, safe_role)
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- users.role is now superseded by user_role_assignments -- drop the column
+-- (and its FK/default/check) now that every existing value has been
+-- backfilled above.
+ALTER TABLE users DROP COLUMN IF EXISTS role;
+
+COMMENT ON TABLE user_role_assignments IS 'Many-to-many: which of the 5 roles each user holds. A user can hold any combination (e.g. moderator + management without being a full admin).';
+
+-- ============================================================================
+-- 23. MIGRATION (2026-10-09): Prod-release rollout flag
+-- ============================================================================
+-- A generic key/value `rules` table for small global on/off switches, the
+-- first of which is `prod_release`: gates whether bare `/` (and any
+-- unrecognized path) goes to the existing Ask-a-Question flow at /ask (N,
+-- the default -- what every already-printed/shared QR code and link
+-- expects) or to the new chooser screen at /root (Y). /root itself stays
+-- directly reachable regardless of this flag; it only governs the default
+-- for an unspecified path. Flip the value to 'Y' directly in Supabase
+-- (Table Editor or SQL) once ready to roll the chooser out on existing
+-- links -- no code change or redeploy needed.
+CREATE TABLE IF NOT EXISTS rules (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+INSERT INTO rules (key, value) VALUES ('prod_release', 'N')
+ON CONFLICT (key) DO NOTHING;
+
+DROP TRIGGER IF EXISTS update_rules_updated_at ON rules;
+CREATE TRIGGER update_rules_updated_at BEFORE UPDATE ON rules
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS: enabled, default-deny, same posture as every other table in this
+-- schema -- this flag is served to the public through a dedicated server
+-- endpoint (GET /api/rules/prod-release), never queried directly from the
+-- browser.
+ALTER TABLE rules ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE rules IS 'Generic key/value global flags, read via a dedicated server endpoint per key (never queried directly from the client). See prod_release for the first example.';
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

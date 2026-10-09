@@ -149,24 +149,104 @@ export interface OpenEventSummary {
 }
 
 /**
- * The 4 valid application roles, sourced from the `users`/`user_roles`
+ * The 5 valid application roles, sourced from the `users`/`user_roles`
  * tables (the source of truth for access control -- not Supabase Auth's
- * `app_metadata`, which is vestigial).
+ * `app_metadata`, which is vestigial). `management` is scoped to the
+ * complaints dashboard at /dashboard only (alongside `admin`) -- it grants
+ * no access to the Moderator/Panel/Stage views.
  */
-export type UserRole = 'admin' | 'moderator' | 'panelist' | 'stage';
+export type UserRole = 'admin' | 'moderator' | 'panelist' | 'stage' | 'management';
 
 /**
- * A row from the `users` table, mirroring a Supabase Auth account with an
- * application role attached.
+ * A row from the `users` table, mirroring a Supabase Auth account, with
+ * every role it holds attached. A user can hold any combination of roles
+ * (e.g. `['moderator', 'management']`) -- `roles` is never empty for an
+ * account that can sign in at all.
  */
 export interface AppUser {
   id: string;
   email: string;
   username: string;
-  role: UserRole;
+  roles: UserRole[];
 }
 
 /**
  * Defines the different user interface views available in the application.
  */
 export type ViewRole = 'audience' | 'moderator' | 'panel' | 'stage';
+
+/**
+ * The server's response to a successful `POST /api/complaints` submission.
+ * `ticketNumber` is the only handle the anonymous submitter gets to
+ * reference this complaint later -- there is no login and no "my
+ * complaints" view, only the public status lookup.
+ */
+export interface ComplaintSubmissionResult {
+  id: string;
+  ticketNumber: string;
+  createdAt: string;
+}
+
+/**
+ * A complaint's lifecycle: submitted (open) -> categorized (acknowledged,
+ * the first workflow action in the /dashboard management view) ->
+ * assigned (given a free-text assignee name) -> resolved (marked done,
+ * with an optional photo as proof).
+ */
+export type ComplaintStatus = 'open' | 'acknowledged' | 'assigned' | 'resolved';
+
+/**
+ * Fixed set of complaint categories, chosen at the acknowledgment step.
+ * Deliberately a hardcoded list rather than a managed table -- there is no
+ * UI (yet) for editing categories, and a fixed list is enough for the
+ * dashboard's "simple but effective" workflow.
+ */
+export const COMPLAINT_CATEGORIES = [
+  { value: 'facilities', label: 'Facilities & Maintenance' },
+  { value: 'audio_visual', label: 'Audio/Visual & Sound' },
+  { value: 'security', label: 'Security & Safety' },
+  { value: 'cleanliness', label: 'Cleanliness & Sanitation' },
+  { value: 'medical', label: 'Medical / First Aid' },
+  { value: 'staff_behavior', label: 'Staff Behavior' },
+  { value: 'other', label: 'Other' }
+] as const;
+
+export type ComplaintCategory = typeof COMPLAINT_CATEGORIES[number]['value'];
+
+/**
+ * A complaint row as seen by the /dashboard management view (admin or
+ * management role required server-side).
+ */
+export interface Complaint {
+  id: string;
+  ticketNumber: string;
+  name: string;
+  phone: string;
+  complaintText: string;
+  status: ComplaintStatus;
+  category?: ComplaintCategory;
+  assignedTo?: string;
+  resolutionPhotoUrl?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+  assignedAt?: string;
+  resolvedAt?: string;
+}
+
+/**
+ * The public, unauthenticated response to `GET /api/complaints/lookup` --
+ * deliberately narrower than `Complaint` (no raw phone/name echoed back,
+ * since the caller already knows them -- they had to supply the phone to
+ * get this response in the first place).
+ */
+export interface ComplaintLookupResult {
+  ticketNumber: string;
+  status: ComplaintStatus;
+  category?: ComplaintCategory;
+  assignedTo?: string;
+  resolutionPhotoUrl?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+  assignedAt?: string;
+  resolvedAt?: string;
+}

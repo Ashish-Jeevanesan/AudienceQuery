@@ -445,7 +445,7 @@ export function useRealTimeQnA(joinCode?: string) {
     });
   }, [adminFetch, runTracked]);
 
-  const updateUser = useCallback(async (id: string, data: { role?: string; username?: string }) => {
+  const updateUser = useCallback(async (id: string, data: { roles?: string[]; username?: string }) => {
     return runTracked(async () => {
       try {
         const res = await adminFetch(`/api/users/${id}`, {
