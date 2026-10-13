@@ -44,6 +44,11 @@ export function useRealTimeQnA(joinCode?: string) {
   // public /api/state snapshot.
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  // Global on/off switches from the `rules` table (see GET/PATCH
+  // /api/rules/prod-release and /api/rules/complaints-open in server.ts),
+  // surfaced to admins via the Moderator screen's Rules tab. null until the
+  // first fetch resolves.
+  const [rules, setRules] = useState<{ prodRelease: boolean; complaintsOpen: boolean } | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [activeRole, setActiveRole] = useState<ViewRole>('audience');
   const [mySubmittedIds, setMySubmittedIds] = useState<string[]>(() => {
@@ -462,6 +467,44 @@ export function useRealTimeQnA(joinCode?: string) {
     });
   }, [adminFetch, fetchUsers, runTracked]);
 
+  // Both rule flags are served over public GET endpoints (so /complain and
+  // the chooser router can read them without a session) -- only the PATCH
+  // side needs adminFetch's bearer token.
+  const fetchRules = useCallback(async () => {
+    return runTracked(async () => {
+      try {
+        const [prodReleaseRes, complaintsOpenRes] = await Promise.all([
+          fetch('/api/rules/prod-release'),
+          fetch('/api/rules/complaints-open')
+        ]);
+        const prodReleaseData = await prodReleaseRes.json();
+        const complaintsOpenData = await complaintsOpenRes.json();
+        setRules({ prodRelease: !!prodReleaseData.prodRelease, complaintsOpen: complaintsOpenData.open !== false });
+      } catch (err) {
+        console.error('Fetch rules error:', err);
+      }
+    });
+  }, [runTracked]);
+
+  const updateRule = useCallback(async (key: 'prodRelease' | 'complaintsOpen', value: boolean) => {
+    return runTracked(async () => {
+      try {
+        const path = key === 'prodRelease' ? '/api/rules/prod-release' : '/api/rules/complaints-open';
+        const body = key === 'prodRelease' ? { prodRelease: value } : { open: value };
+        const res = await adminFetch(path, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to update rule');
+        setRules(prev => prev ? { ...prev, [key]: value } : prev);
+      } catch (err) {
+        console.error('Update rule error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, runTracked]);
+
   const resetDemoData = useCallback(async () => {
     return runTracked(async () => {
       try {
@@ -607,6 +650,9 @@ export function useRealTimeQnA(joinCode?: string) {
     updateEventById,
     fetchUsers,
     updateUser,
+    rules,
+    fetchRules,
+    updateRule,
     translateText,
     resetDemoData,
     uploadEventMedia,

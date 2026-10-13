@@ -254,6 +254,74 @@ app.get('/api/rules/prod-release', async (req, res) => {
 });
 
 /**
+ * @route PATCH /api/rules/prod-release
+ * @description Lets a full admin flip the chooser rollout on/off from the
+ * Moderator screen's Rules tab instead of needing direct Supabase access.
+ * Admin-only (not `management`) -- this is a site-wide routing switch, a
+ * different class of decision than the complaints-intake one below.
+ */
+app.patch('/api/rules/prod-release', requireAdminOnly, async (req, res) => {
+  const { prodRelease } = req.body as { prodRelease?: boolean };
+  if (typeof prodRelease !== 'boolean') {
+    return res.status(400).json({ error: '"prodRelease" must be a boolean' });
+  }
+  try {
+    const { error } = await supabase
+      .from('rules')
+      .upsert({ key: 'prod_release', value: prodRelease ? 'Y' : 'N' }, { onConflict: 'key' });
+    if (error) throw error;
+    logger.info('prod_release rule changed', { prodRelease, by: (req as any).appUser?.email });
+    res.json({ prodRelease });
+  } catch (error: any) {
+    logger.error('Error updating prod_release rule', error);
+    res.status(500).json({ error: error.message || 'Failed to update rule' });
+  }
+});
+
+/**
+ * @route GET /api/rules/complaints-open
+ * @description Public flag the /complain page checks to decide whether to
+ * show the submission form or a "not accepting complaints right now"
+ * message. Defaults to true (open) on any read error so a transient DB hiccup
+ * doesn't accidentally block submissions. Enforced server-side in
+ * POST /api/complaints regardless of what the client saw.
+ */
+app.get('/api/rules/complaints-open', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('rules').select('value').eq('key', 'complaints_open').maybeSingle();
+    if (error) throw error;
+    res.json({ open: data ? data.value === 'Y' : true });
+  } catch (error: any) {
+    logger.error('Error fetching complaints_open rule', error);
+    res.json({ open: true });
+  }
+});
+
+/**
+ * @route PATCH /api/rules/complaints-open
+ * @description Admin/management kill switch to stop new complaint
+ * submissions on demand (e.g. an overflow of tickets at an event), without a
+ * deploy. Flips the `complaints_open` row in the `rules` table.
+ */
+app.patch('/api/rules/complaints-open', requireDashboard, async (req, res) => {
+  const { open } = req.body as { open?: boolean };
+  if (typeof open !== 'boolean') {
+    return res.status(400).json({ error: '"open" must be a boolean' });
+  }
+  try {
+    const { error } = await supabase
+      .from('rules')
+      .upsert({ key: 'complaints_open', value: open ? 'Y' : 'N' }, { onConflict: 'key' });
+    if (error) throw error;
+    logger.info('complaints_open rule changed', { open, by: (req as any).appUser?.email });
+    res.json({ open });
+  } catch (error: any) {
+    logger.error('Error updating complaints_open rule', error);
+    res.status(500).json({ error: error.message || 'Failed to update rule' });
+  }
+});
+
+/**
  * @route POST /api/session
  * @description Generates a new secure server-side session ID for a user.
  * SECURITY:
@@ -621,6 +689,18 @@ app.post('/api/complaints', async (req, res) => {
   const ticketNumber = generateTicketNumber();
 
   try {
+    // Global kill switch (see GET/PATCH /api/rules/complaints-open) --
+    // checked here, not just on the client, so a visitor who already had the
+    // form open when it was flipped off still can't get a ticket through.
+    // A failed read fails OPEN (same posture as the GET endpoint) so a
+    // transient DB hiccup doesn't silently block every submission.
+    const { data: rule, error: ruleError } = await supabase.from('rules').select('value').eq('key', 'complaints_open').maybeSingle();
+    if (ruleError) {
+      logger.error('Error checking complaints_open rule, failing open', ruleError);
+    } else if (rule && rule.value !== 'Y') {
+      return res.status(403).json({ error: 'We are not accepting new complaints right now. Please check back later.' });
+    }
+
     const { data, error } = await supabase
       .from('complaints')
       .insert({

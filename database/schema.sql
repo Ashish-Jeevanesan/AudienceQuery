@@ -1001,5 +1001,22 @@ ALTER TABLE rules ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE rules IS 'Generic key/value global flags, read via a dedicated server endpoint per key (never queried directly from the client). See prod_release for the first example.';
 
 -- ============================================================================
+-- 24. MIGRATION (2026-10-11): Complaints intake kill switch
+-- ============================================================================
+-- Second entry in the `rules` table: `complaints_open` lets admin/management
+-- stop new complaint submissions on demand (e.g. an overflow of tickets at
+-- an event) without a deploy. Defaults to 'Y' (open) so existing behavior is
+-- unchanged until someone deliberately flips it off from the dashboard.
+-- Enforced server-side in POST /api/complaints; GET /api/rules/complaints-open
+-- is public (the /complain page checks it to show a closed message instead
+-- of the form), PATCH is admin/management-only.
+--
+-- Questions already have an equivalent per-event control (`is_accepting_
+-- questions`, toggled via the "Pause questions" button in the Moderator
+-- dashboard) -- this does the same job for the single global complaint box.
+INSERT INTO rules (key, value) VALUES ('complaints_open', 'Y')
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

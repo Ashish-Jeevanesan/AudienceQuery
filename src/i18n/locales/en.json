@@ -90,6 +90,8 @@
     "phoneInvalid": "Please enter a valid phone number.",
     "complaintRequired": "Please describe your complaint.",
     "submitErrorFallback": "Failed to submit your complaint. Please try again.",
+    "closedTitle": "Not accepting complaints right now",
+    "closedSubtext": "We've temporarily paused new complaints. Please check back shortly.",
     "successTitle": "Complaint submitted",
     "successSubtext": "We've received your complaint and will follow up soon.",
     "ticketLabel": "Your reference number",

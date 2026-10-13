@@ -8,10 +8,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 
 const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage', 'management'];
+
+/** What screen(s)/module(s) each role actually unlocks -- shown next to the
+    role checkboxes in Manage Users so an admin can see the real effect of a
+    grant, not just the role's name. */
+const ROLE_ACCESS_DESCRIPTION: Record<UserRole, string> = {
+  admin: 'All screens, Manage Users, Rules tab',
+  moderator: 'Moderator screen + Manage Artifacts',
+  panelist: 'Panel screen',
+  stage: 'Stage display screen',
+  management: 'Complaints Dashboard (/dashboard)'
+};
 
 /** Converts an ISO timestamp to the local-time value a `datetime-local` input expects ("YYYY-MM-DDTHH:mm"). */
 function toDatetimeLocalValue(iso?: string): string {
@@ -51,6 +62,9 @@ interface ModeratorViewProps {
   onDeleteEvent: (eventId: string) => Promise<void>;
   onFetchUsers: () => void;
   onUpdateUser: (id: string, data: { roles?: string[]; username?: string }) => Promise<void>;
+  rules: { prodRelease: boolean; complaintsOpen: boolean } | null;
+  onFetchRules: () => void;
+  onUpdateRule: (key: 'prodRelease' | 'complaintsOpen', value: boolean) => Promise<void>;
   onTranslateText: (text: string, targets: ('hi' | 'or')[]) => Promise<Partial<Record<'hi' | 'or', string>>>;
 }
 
@@ -78,6 +92,9 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onDeleteEvent,
   onFetchUsers,
   onUpdateUser,
+  rules,
+  onFetchRules,
+  onUpdateRule,
   onTranslateText
 }) => {
   // State variables for filter tabs, search, and sorting
@@ -102,12 +119,13 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // Manage Events/Categories/Users drawers are mutually exclusive (accordion) --
   // opening one closes whichever was already open, so there's never more than
   // one to lose track of. Opening a drawer also smooth-scrolls it into view.
-  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | 'artifacts' | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | 'artifacts' | 'rules' | null>(null);
   const showEvents = openDrawer === 'events';
   const showCategories = openDrawer === 'categories';
   const showUsers = openDrawer === 'users';
   const showArtifacts = openDrawer === 'artifacts';
-  const toggleDrawer = (drawer: 'events' | 'categories' | 'users' | 'artifacts') => {
+  const showRules = openDrawer === 'rules';
+  const toggleDrawer = (drawer: 'events' | 'categories' | 'users' | 'artifacts' | 'rules') => {
     setOpenDrawer(prev => (prev === drawer ? null : drawer));
   };
   const closeDrawer = () => setOpenDrawer(null);
@@ -116,11 +134,27 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const categoriesDrawerRef = useRef<HTMLDivElement>(null);
   const usersDrawerRef = useRef<HTMLDivElement>(null);
   const artifactsDrawerRef = useRef<HTMLDivElement>(null);
+  const rulesDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : openDrawer === 'artifacts' ? artifactsDrawerRef : null;
+    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : openDrawer === 'artifacts' ? artifactsDrawerRef : openDrawer === 'rules' ? rulesDrawerRef : null;
     ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [openDrawer]);
+
+  const [togglingRule, setTogglingRule] = useState<'prodRelease' | 'complaintsOpen' | null>(null);
+  const [ruleToggleError, setRuleToggleError] = useState('');
+
+  const handleToggleRule = async (key: 'prodRelease' | 'complaintsOpen', value: boolean) => {
+    setTogglingRule(key);
+    setRuleToggleError('');
+    try {
+      await onUpdateRule(key, value);
+    } catch (err: any) {
+      setRuleToggleError(err?.message || 'Failed to update rule');
+    } finally {
+      setTogglingRule(null);
+    }
+  };
 
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameHi, setNewCatNameHi] = useState('');
@@ -200,16 +234,23 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // admin-only server-side, so plain moderators skip that call entirely.
   useEffect(() => {
     onFetchEvents();
-    if (isAdmin) onFetchUsers();
+    if (isAdmin) {
+      onFetchUsers();
+      onFetchRules();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
-  // Metrics for the dashboard counters
-  const pendingCount = questions.filter(q => q.status === 'pending').length;
-  const pushedCount = questions.filter(q => q.status === 'pushed').length;
-  const answeringCount = questions.filter(q => q.status === 'answering').length;
-  const answeredCount = questions.filter(q => q.status === 'answered').length;
-  const approvedCount = questions.filter(q => q.status === 'approved').length;
+  // Metrics for the dashboard counters -- scoped to the selected event (the
+  // "All Events" dropdown below) so picking an event narrows these KPIs the
+  // same way it narrows the question list, instead of always reflecting
+  // every event at once.
+  const eventScopedQuestions = eventFilter === 'all' ? questions : questions.filter(q => q.eventId === eventFilter);
+  const pendingCount = eventScopedQuestions.filter(q => q.status === 'pending').length;
+  const pushedCount = eventScopedQuestions.filter(q => q.status === 'pushed').length;
+  const answeringCount = eventScopedQuestions.filter(q => q.status === 'answering').length;
+  const answeredCount = eventScopedQuestions.filter(q => q.status === 'answered').length;
+  const approvedCount = eventScopedQuestions.filter(q => q.status === 'approved').length;
 
   // Filter questions based on the active tab, category, and search query
   let filtered = questions.filter(q => {
@@ -475,6 +516,16 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             </button>
           )}
 
+          {isAdmin && (
+            <button
+              onClick={() => toggleDrawer('rules')}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Rules</span>
+            </button>
+          )}
+
           <button
             onClick={() => toggleDrawer('artifacts')}
             className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
@@ -681,14 +732,15 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                           can be open at once. */}
                       <button
                         onClick={() => handleToggleAcceptingQuestions(evt)}
-                        disabled={togglingEventId === evt.id}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-60 ${
+                        disabled={togglingEventId === evt.id || evt.isExpired}
+                        title={evt.isExpired ? 'This event has expired and is no longer accepting questions regardless of this setting.' : undefined}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                           evt.isAcceptingQuestions
                             ? 'bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider'
                             : 'bg-indigo-600 text-white hover:bg-indigo-700'
                         }`}
                       >
-                        {togglingEventId === evt.id ? 'Saving…' : evt.isAcceptingQuestions ? 'Pause questions' : 'Open questions'}
+                        {togglingEventId === evt.id ? 'Saving…' : evt.isExpired ? 'Expired' : evt.isAcceptingQuestions ? 'Pause questions' : 'Open questions'}
                       </button>
                       <button
                         onClick={() => openEventEdit(evt)}
@@ -965,16 +1017,19 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       {/* A user can hold any combination of roles -- checkboxes,
                           not a single-select dropdown. At least one must stay
                           checked (enforced in toggleDraftRole). */}
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {ALL_ROLES.map(r => (
-                          <label key={r} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-divider text-xs text-secondary capitalize cursor-pointer">
+                          <label key={r} className="flex items-start gap-1.5 px-2 py-1.5 rounded-lg border border-divider text-secondary cursor-pointer">
                             <input
                               type="checkbox"
                               checked={userEditDraft.roles.includes(r)}
                               onChange={() => toggleDraftRole(r)}
-                              className="w-3.5 h-3.5"
+                              className="w-3.5 h-3.5 mt-0.5 shrink-0"
                             />
-                            {r}
+                            <span className="min-w-0">
+                              <span className="block text-xs font-semibold capitalize text-primary">{r}</span>
+                              <span className="block text-[11px] text-muted leading-snug">{ROLE_ACCESS_DESCRIPTION[r]}</span>
+                            </span>
                           </label>
                         ))}
                       </div>
@@ -993,6 +1048,72 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Rules Drawer (admin only) -- the `rules` table's global on/off
+          switches, previously only flippable via direct Supabase access. */}
+      {isAdmin && showRules && (
+        <div ref={rulesDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn scroll-mt-24">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
+              <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
+              <span>Rules</span>
+            </h3>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
+          </div>
+
+          {ruleToggleError && (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+              <AlertCircle className="w-3.5 h-3.5" /> {ruleToggleError}
+            </p>
+          )}
+
+          {!rules ? (
+            <p className="text-xs text-muted italic">Loading rules…</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-divider p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-primary">Accepting new complaints</p>
+                  <p className="text-xs text-muted mt-0.5">Turn off to stop new /complain submissions immediately -- e.g. during a ticket overflow. Checking status stays available either way.</p>
+                </div>
+                <button
+                  onClick={() => handleToggleRule('complaintsOpen', !rules.complaintsOpen)}
+                  disabled={togglingRule === 'complaintsOpen'}
+                  title={rules.complaintsOpen ? 'Click to stop accepting complaints' : 'Click to resume accepting complaints'}
+                  className={`shrink-0 h-9 px-3 flex items-center gap-1.5 rounded-lg border transition disabled:opacity-60 text-xs font-bold ${
+                    rules.complaintsOpen
+                      ? 'bg-surface-secondary text-secondary hover:bg-surface-hover border-divider'
+                      : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                  }`}
+                >
+                  {rules.complaintsOpen ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+                  {rules.complaintsOpen ? 'Open' : 'Paused'}
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-divider p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-primary">Chooser rollout (/root)</p>
+                  <p className="text-xs text-muted mt-0.5">While off, bare "/" and existing QR codes/links keep going to /ask as before. Once on, they route to the /root chooser instead. /root is reachable by direct link regardless.</p>
+                </div>
+                <button
+                  onClick={() => handleToggleRule('prodRelease', !rules.prodRelease)}
+                  disabled={togglingRule === 'prodRelease'}
+                  title={rules.prodRelease ? 'Click to send "/" back to /ask' : 'Click to send "/" to the /root chooser'}
+                  className={`shrink-0 h-9 px-3 flex items-center gap-1.5 rounded-lg border transition disabled:opacity-60 text-xs font-bold ${
+                    rules.prodRelease
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-surface-secondary text-secondary hover:bg-surface-hover border-divider'
+                  }`}
+                >
+                  {rules.prodRelease ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+                  {rules.prodRelease ? 'Live' : 'Off'}
+                </button>
+              </div>
             </div>
           )}
         </div>

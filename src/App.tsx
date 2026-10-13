@@ -104,6 +104,9 @@ export default function App() {
     updateEventById,
     fetchUsers,
     updateUser,
+    rules,
+    fetchRules,
+    updateRule,
     translateText,
     resetDemoData,
     uploadEventMedia,
@@ -137,6 +140,17 @@ export default function App() {
   // live event" to fall back to. Moderator ignores this entirely; it shows
   // an overview across every event regardless of the URL.
   const needsEventSelection = activeRole !== 'moderator' && !conferenceEvent.id;
+
+  // With exactly one event currently open, there's nothing to actually
+  // choose between -- skip the picker screen and go straight to it. Only
+  // fires at a bare /ask visit with no event selected yet; arriving via a
+  // direct /e/:joinCode link, or already viewing one event, is left alone.
+  useEffect(() => {
+    if (!joinCode && openEvents.length === 1) {
+      selectEvent(openEvents[0].joinCode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joinCode, openEvents]);
 
   const handleLogin = () => {
     setLoginError('');
@@ -264,6 +278,9 @@ export default function App() {
                 onDeleteEvent={deleteEvent}
                 onFetchUsers={fetchUsers}
                 onUpdateUser={updateUser}
+                rules={rules}
+                onFetchRules={fetchRules}
+                onUpdateRule={updateRule}
                 onTranslateText={translateText}
               />
             )}

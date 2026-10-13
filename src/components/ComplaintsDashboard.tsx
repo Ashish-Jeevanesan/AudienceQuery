@@ -20,7 +20,8 @@ import type { Complaint, ComplaintStatus } from '../types';
 import { COMPLAINT_CATEGORIES } from '../types';
 import {
   ArrowLeft, ShieldAlert, RefreshCw, Search, Phone, Clock, Camera,
-  CheckCircle2, ClipboardList, UserPlus, X, Image as ImageIcon, BookOpen
+  CheckCircle2, ClipboardList, UserPlus, X, Image as ImageIcon, BookOpen,
+  PauseCircle, PlayCircle
 } from 'lucide-react';
 
 const STATUS_LABEL: Record<ComplaintStatus, string> = {
@@ -96,6 +97,13 @@ export const ComplaintsDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Global intake kill switch (see GET/PATCH /api/rules/complaints-open in
+  // server.ts) -- lets admin/management stop new submissions on demand, e.g.
+  // an overflow of tickets at an event. null while still loading so the
+  // button doesn't briefly render the wrong state.
+  const [complaintsOpen, setComplaintsOpen] = useState<boolean | null>(null);
+  const [togglingIntake, setTogglingIntake] = useState(false);
+
   useEffect(() => {
     document.title = 'Complaints Dashboard';
   }, []);
@@ -150,6 +158,39 @@ export const ComplaintsDashboard: React.FC = () => {
     if (hasAccess) fetchComplaints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess]);
+
+  const fetchIntakeStatus = async () => {
+    try {
+      const res = await fetch('/api/rules/complaints-open');
+      const data = await res.json();
+      setComplaintsOpen(data.open !== false);
+    } catch {
+      setComplaintsOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    if (hasAccess) fetchIntakeStatus();
+  }, [hasAccess]);
+
+  const toggleIntake = async () => {
+    if (complaintsOpen === null || togglingIntake) return;
+    const next = !complaintsOpen;
+    setTogglingIntake(true);
+    try {
+      const res = await authFetch('/api/rules/complaints-open', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ open: next })
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed to update');
+      setComplaintsOpen(next);
+    } catch (err: any) {
+      setLoadError(err.message || 'Failed to update complaint intake setting');
+    } finally {
+      setTogglingIntake(false);
+    }
+  };
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -260,6 +301,19 @@ export const ComplaintsDashboard: React.FC = () => {
             >
               <BookOpen className="w-4 h-4" />
             </Link>
+            <button
+              onClick={toggleIntake}
+              disabled={complaintsOpen === null || togglingIntake}
+              title={complaintsOpen === false ? 'Not accepting new complaints -- click to reopen' : 'Accepting new complaints -- click to stop intake'}
+              className={`h-10 px-3 flex items-center gap-1.5 rounded-lg border transition disabled:opacity-60 text-xs font-bold ${
+                complaintsOpen === false
+                  ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                  : 'bg-surface-secondary text-secondary hover:bg-surface-hover border-divider'
+              }`}
+            >
+              {complaintsOpen === false ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+              <span className="hidden sm:inline">{complaintsOpen === false ? 'Intake paused' : 'Intake open'}</span>
+            </button>
             <button
               onClick={fetchComplaints}
               disabled={loading}

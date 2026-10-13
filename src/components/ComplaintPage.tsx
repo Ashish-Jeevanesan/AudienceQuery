@@ -15,10 +15,10 @@
  * to a table full of live data.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { MessageSquareWarning, Send, Sun, Moon, Copy, Check, SearchCheck, ArrowLeft, BookOpen } from 'lucide-react';
+import { MessageSquareWarning, Send, Sun, Moon, Copy, Check, SearchCheck, ArrowLeft, BookOpen, PauseCircle } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import type { ComplaintSubmissionResult, ComplaintLookupResult } from '../types';
 
@@ -26,6 +26,17 @@ export const ComplaintPage: React.FC = () => {
   const { t } = useTranslation();
   const [isDark, setIsDark] = useState(false);
   const [mode, setMode] = useState<'submit' | 'status'>('submit');
+
+  // Admin/management global kill switch (see GET/PATCH /api/rules/complaints-open
+  // in server.ts) -- defaults to true so the form doesn't flash a false
+  // "closed" state while this is still loading.
+  const [complaintsOpen, setComplaintsOpen] = useState(true);
+  useEffect(() => {
+    fetch('/api/rules/complaints-open')
+      .then(res => res.json())
+      .then(data => setComplaintsOpen(data.open !== false))
+      .catch(() => {});
+  }, []);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -318,6 +329,12 @@ export const ComplaintPage: React.FC = () => {
                   </button>
                 </form>
               )
+            ) : !complaintsOpen ? (
+              <div className="text-center py-6 space-y-2">
+                <PauseCircle className="w-8 h-8 mx-auto" style={{ color: `rgb(var(--text-secondary))` }} />
+                <p className="font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('complaint.closedTitle')}</p>
+                <p className="text-sm" style={{ color: `rgb(var(--text-secondary))` }}>{t('complaint.closedSubtext')}</p>
+              </div>
             ) : result ? (
               <div className="text-center py-4 space-y-5">
                 <div
