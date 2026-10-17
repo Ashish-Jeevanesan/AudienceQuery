@@ -12,7 +12,7 @@ Things that have been flagged during development but intentionally not acted on 
 
 - **SMS/OTP phone verification**: would make the phone-number dedup airtight against someone using a second real number, same prerequisite as the WhatsApp item above -- needs a paid SMS provider account set up first, not a code blocker. Not started; the current per-phone `UNIQUE` constraint is the only hard anti-duplicate-vote check.
 - **Hindi/Odia translation is question-only.** Option labels (participant/song names) stay English-only by design (see the approved design artifact's Open Question 4) -- extend the same way if a future voting wants translated option labels too.
-- **`/vote/stage`'s "Switch to Q&A Stage" link goes to `/ask`, not directly to the Stage tab.** The existing Q&A Stage view has no addressable URL of its own (it's a tab inside the main app shell, reached after picking an event) -- a follow-up could add one if staff find re-navigating from `/ask` each time annoying.
+- **`/vote/stage`'s "Switch to Q&A Stage" link goes to `/ask`, not directly to the Stage tab**, and the Q&A Stage view's own new link to `/vote/stage` is a one-way jump too (no "back" once there beyond browser back). Neither Stage view has an addressable URL for "the currently selected event's Stage tab" to link to directly -- the Q&A Stage view is a tab inside the main app shell, reached after picking an event. A follow-up could add one if staff find the round trip annoying.
 
 ## In progress — resume when Gemini Implementer is back
 

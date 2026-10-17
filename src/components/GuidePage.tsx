@@ -14,7 +14,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Sun, Moon, X, ZoomIn,
-  Compass, MessageSquare, MessageSquareWarning, ShieldCheck, Mic, Monitor, UserCog, LayoutDashboard
+  Compass, MessageSquare, MessageSquareWarning, ShieldCheck, Mic, Monitor, UserCog, LayoutDashboard,
+  Vote as VoteIcon
 } from 'lucide-react';
 
 interface Shot {
@@ -38,10 +39,10 @@ const SECTIONS: Section[] = [
     id: 'overview',
     icon: <Compass className="w-5 h-5" />,
     title: 'Overview',
-    subtitle: 'One link, two jobs: asking a question, or raising a complaint.',
+    subtitle: 'One link, three jobs: asking a question, raising a complaint, or voting.',
     steps: [
       'Everyone starts at the same place: the chooser screen.',
-      'From there, pick "Ask a Question" for a live event’s Q&A, or "Raise a Complaint" to report an issue — no login needed for either.',
+      'From there, pick "Ask a Question" for a live event’s Q&A, "Raise a Complaint" to report an issue, or "Vote" to take part in whatever poll is currently open — no login needed for any of them.',
       'Staff (moderator, panel, stage, admin, management) sign in from within those same screens to reach their own view.'
     ],
     shots: [{ src: '/guide/chooser.jpg', alt: 'Chooser screen', caption: 'The chooser screen — everyone’s starting point' }]
@@ -81,6 +82,25 @@ const SECTIONS: Section[] = [
     ]
   },
   {
+    id: 'voting',
+    icon: <VoteIcon className="w-5 h-5" />,
+    title: 'Voting',
+    subtitle: 'E.g. picking a theme song — no account needed to vote, plus a staff setup, review, and live results screen.',
+    steps: [
+      'An admin sets this up first, from "Manage Votings" in the Moderator screen: write a question, add 2 or more options, then open it to the public. More than one voting can be open at once.',
+      'Choose "Vote" from the chooser — with one voting open it goes straight to the options, with more than one it asks which poll first.',
+      'Pick an option, then confirm with a name, phone number, and date of birth. One vote per phone number per voting — changing the name (even just the case) doesn’t open a second vote.',
+      'Staff review every vote in "Vote Monitor," where suspicious patterns (e.g. the same device behind several different phone numbers) are auto-flagged for a human to invalidate if they turn out to be fake.',
+      'The results project live, bar by bar, on the Vote Results Stage screen (/vote/stage) — a link next to the Q&A Stage’s fullscreen button jumps straight there.'
+    ],
+    shots: [
+      { src: '/guide/voting-manager.jpg', alt: 'Manage Votings', caption: 'Admin: setting up a voting and watching its live counts' },
+      { src: '/guide/vote-options.jpg', alt: 'Vote options', caption: 'The public vote screen — pick an option, no login' },
+      { src: '/guide/vote-monitor.jpg', alt: 'Vote Monitor', caption: 'Staff review: a shared-device vote auto-flagged for a closer look' },
+      { src: '/guide/vote-stage.jpg', alt: 'Vote Results Stage', caption: 'Live results, projected for the room' }
+    ]
+  },
+  {
     id: 'moderator',
     icon: <ShieldCheck className="w-5 h-5" />,
     title: 'Moderator',
@@ -89,7 +109,7 @@ const SECTIONS: Section[] = [
       'Sign in from the Ask a Question screen (Login, top right).',
       'The Review Inbox lists every pending question across all events.',
       'Approve, reject, star (priority), edit, or delete a question — or send it straight to the panel queue.',
-      'Also manages events, topic categories, and event branding (logo/banners) from the same dashboard.'
+      'Also manages events, topic categories, event branding, and (with Vote Monitor) reviewing cast votes — all from the same dashboard. Setting up a voting itself is admin-only; see Voting above.'
     ],
     shots: [{ src: '/guide/moderator-inbox.jpg', alt: 'Moderator Review Inbox', caption: 'The Review Inbox — the moderator’s main workspace' }]
   },

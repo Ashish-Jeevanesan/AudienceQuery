@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Question, Category, ConferenceEvent } from '../types';
-import { Sparkles, Monitor, Maximize2, Radio, Clock } from 'lucide-react';
+import { Sparkles, Monitor, Maximize2, Radio, Clock, Vote as VoteIcon } from 'lucide-react';
 import { getLocalizedText } from '../i18n/localizedContent';
 
 interface StageViewProps {
@@ -114,13 +115,22 @@ export const StageView: React.FC<StageViewProps> = ({
           </div>
 
           {/* Display Controls */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition shrink-0"
-            title="Toggle Fullscreen Presentation"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/vote/stage"
+              className="p-3 rounded-xl bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider font-bold text-xs shadow-md transition"
+              title="Switch to Vote Results Stage"
+            >
+              <VoteIcon className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={toggleFullscreen}
+              className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition"
+              title="Toggle Fullscreen Presentation"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Audience Join QR Code & Short Code Banner -- always centered on the

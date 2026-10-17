@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-17] - Voting Added to the Guide, Stage Cross-Link Fix
+
+- **`/guide` now documents the voting feature**: a new "Voting" section (between Raise & Track and Moderator, matching the `/root` chooser's card order) walks through all 4 modules with real screenshots -- admin setup in Manage Votings, the public vote screen, Vote Monitor flagging a shared-device vote, and the live Vote Results Stage. The Overview section and its chooser screenshot now reflect three options instead of two, and the Moderator section notes Vote Monitor alongside its other review tools.
+- **Fixed a one-way link between the two Stage screens**: the Q&A Stage view had no way to jump to the new Vote Results Stage (`/vote/stage`) -- only the reverse direction existed. Added a small vote icon next to the Q&A Stage's fullscreen button that jumps straight there.
+
 ## [2026-10-17] - Theme Song Voting (4 modules)
 
 - **New voting feature, designed and approved via a shared Artifact review before any code was written** (see the design doc's Open Questions thread for the decisions behind every choice below). Four modules:
