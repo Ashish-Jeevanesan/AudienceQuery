@@ -1018,5 +1018,97 @@ INSERT INTO rules (key, value) VALUES ('complaints_open', 'Y')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
+-- 25. MIGRATION (2026-10-17): Theme Song Voting
+-- ============================================================================
+-- Three new tables backing a 4-module voting feature (design approved in a
+-- shared Artifact review, see commit history/CHANGELOG for the link):
+--   1. Create & Manage Votes (admin only) -- a question + 2+ options.
+--   2. Cast a Vote (public, no login) -- name/phone/DOB + a client-computed
+--      device fingerprint.
+--   3. Monitor & Flag (admin or moderator) -- review votes, invalidate fakes.
+--   4. Live Results Stage (admin/moderator/stage) -- projected live tally.
+--
+-- Anti-duplicate-vote design: phone number is the ONLY hard block (a real
+-- UNIQUE constraint below), because it's the one field here that's actually
+-- supposed to identify a person. Name is stored as typed and is NOT part of
+-- the dedup key, so changing its case can never open a second vote. IP
+-- address and device fingerprint are captured per vote but deliberately
+-- never used as a block -- a venue's shared WiFi puts many real attendees
+-- behind one IP (NAT), and a shared family device is not automatically
+-- fraud, so either would false-block real people. Both instead feed
+-- suspicion_flags, an informational trail for a human to review in Module 3.
+
+CREATE TABLE IF NOT EXISTS votings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  question TEXT NOT NULL,
+  question_hi TEXT,
+  question_or TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'open', 'closed')),
+  is_deleted BOOLEAN NOT NULL DEFAULT false,
+  opened_at TIMESTAMP WITH TIME ZONE,
+  closed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_votings_status ON votings(status);
+CREATE INDEX IF NOT EXISTS idx_votings_is_deleted ON votings(is_deleted);
+
+DROP TRIGGER IF EXISTS update_votings_updated_at ON votings;
+CREATE TRIGGER update_votings_updated_at BEFORE UPDATE ON votings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE votings ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE votings IS 'A single voting question (e.g. "Which theme song should we use?"). Default-deny RLS, same posture as every other table -- served through server.ts only. status drives /vote and /vote/stage visibility: only "open" votings show there.';
+
+CREATE TABLE IF NOT EXISTS voting_options (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  voting_id UUID NOT NULL REFERENCES votings(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  photo_url TEXT,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_voting_options_voting_id ON voting_options(voting_id);
+
+ALTER TABLE voting_options ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE voting_options IS 'The choices for one voting (2+ rows per voting). Default-deny RLS.';
+
+CREATE TABLE IF NOT EXISTS votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  voting_id UUID NOT NULL REFERENCES votings(id) ON DELETE CASCADE,
+  option_id UUID NOT NULL REFERENCES voting_options(id) ON DELETE CASCADE,
+  voter_name TEXT NOT NULL,
+  voter_phone TEXT NOT NULL,
+  voter_dob DATE NOT NULL,
+  device_fingerprint TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  suspicion_flags TEXT[] NOT NULL DEFAULT '{}',
+  is_invalidated BOOLEAN NOT NULL DEFAULT false,
+  invalidated_reason TEXT,
+  invalidated_by TEXT,
+  invalidated_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE (voting_id, voter_phone)
+);
+
+CREATE INDEX IF NOT EXISTS idx_votes_voting_id ON votes(voting_id);
+CREATE INDEX IF NOT EXISTS idx_votes_device_fingerprint ON votes(device_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_votes_created_at ON votes(created_at DESC);
+
+ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE votes IS 'One row per cast vote. UNIQUE(voting_id, voter_phone) is the real anti-duplicate-vote constraint, enforced by Postgres itself so there is no race-condition window between two near-simultaneous submissions. is_invalidated is an admin/moderator-confirmed call that excludes a vote from every tally; suspicion_flags is auto-computed and informational only, never a block.';
+
+-- Storage bucket for option photos (e.g. a participant photo), same posture
+-- as event-media/complaint-media: public read, no direct write policies --
+-- all writes go through the server's service-role client via a signed
+-- upload URL, never directly from a client.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('voting-media', 'voting-media', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

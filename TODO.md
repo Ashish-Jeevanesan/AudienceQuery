@@ -6,7 +6,13 @@ Things that have been flagged during development but intentionally not acted on 
 
 - **WhatsApp status-update notifications** (e.g. "your complaint CMP-XXXX is now in progress"): feasible, but needs a WhatsApp Business/Cloud API account (or a provider like Twilio) set up and message templates approved on the business side first — a prerequisite outside this codebase, not a code blocker. `complaints.phone` is already stored normalized (digits + optional leading `+`) for exactly this.
 - **`internal_notes` column is still unused.** The dashboard's 3-step workflow (categorize → assign → resolve) didn't end up needing it, but it's there if a "leave a note without changing status" action is wanted later.
-- **Rollout flag**: `rules.prod_release` is `'N'` as of 2026-10-09 — bare `/` still goes to `/ask`, not the new `/root` chooser. Flip it to `'Y'` in Supabase when ready to point existing QR codes/links at the chooser instead.
+- **Rollout flag**: `rules.prod_release` was flipped to `'Y'` as of 2026-10-17 -- bare `/` now goes to the `/root` chooser instead of `/ask`. Flippable from the Moderator screen's Rules tab (admin-only) if it ever needs reverting.
+
+## Voting feature -- remaining follow-ups
+
+- **SMS/OTP phone verification**: would make the phone-number dedup airtight against someone using a second real number, same prerequisite as the WhatsApp item above -- needs a paid SMS provider account set up first, not a code blocker. Not started; the current per-phone `UNIQUE` constraint is the only hard anti-duplicate-vote check.
+- **Hindi/Odia translation is question-only.** Option labels (participant/song names) stay English-only by design (see the approved design artifact's Open Question 4) -- extend the same way if a future voting wants translated option labels too.
+- **`/vote/stage`'s "Switch to Q&A Stage" link goes to `/ask`, not directly to the Stage tab.** The existing Q&A Stage view has no addressable URL of its own (it's a tab inside the main app shell, reached after picking an event) -- a follow-up could add one if staff find re-navigating from `/ask` each time annoying.
 
 ## In progress — resume when Gemini Implementer is back
 

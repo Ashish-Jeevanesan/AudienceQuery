@@ -20,7 +20,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MessageSquare, MessageSquareWarning, LayoutDashboard, Sun, Moon, ChevronRight, ShieldCheck, LogOut, BookOpen } from 'lucide-react';
+import { MessageSquare, MessageSquareWarning, LayoutDashboard, Sun, Moon, ChevronRight, ShieldCheck, LogOut, BookOpen, Vote as VoteIcon } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { supabase } from '../supabaseClient';
 
@@ -118,6 +118,14 @@ export const ChooserPage: React.FC = () => {
           bg: `rgb(var(--accent))`,
           title: t('chooser.raiseComplaint'),
           desc: t('chooser.raiseComplaintDesc')
+        },
+        {
+          key: 'vote',
+          onClick: () => navigate('/vote'),
+          icon: <VoteIcon className="w-6 h-6 text-white" />,
+          bg: `rgb(var(--primary))`,
+          title: t('chooser.castVote'),
+          desc: t('chooser.castVoteDesc')
         },
         ...(isAdmin ? [{
           key: 'dashboard',

@@ -1499,6 +1499,569 @@ app.delete('/api/events/:id', requireAdminOnly, async (req, res) => {
 
 
 
+// --- Voting (Theme Song Voting feature) ---
+//
+// Four modules: (1) admin-only create/manage below, (2) public vote casting,
+// (3) admin/moderator monitor & flag, (4) a public live-tally read used by
+// the projected Stage screen. Anti-duplicate-vote design: phone number is
+// the ONLY hard block (a real DB UNIQUE constraint), never name (so
+// changing its case cannot open a second vote) and never IP/device (a
+// venue's shared WiFi/devices would false-block real attendees) -- those
+// two instead feed `suspicion_flags`, informational evidence for a human to
+// review in Module 3. See database/schema.sql migration 25 for the schema
+// itself and the full reasoning.
+
+const requireVotingManage = requireAdminOnly;
+// "admin or moderator" -- requireAdmin is actually that pair already (see
+// its own back-compat comment above), reused here for Module 3.
+const requireVotingStaff = requireAdmin;
+
+/** Normalizes a free-text name for comparisons/search -- trim + lowercase. Never used as a dedup key (phone is), so this has no bearing on vote-blocking. */
+function normalizeNameForSearch(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** True for a syntactically sane, non-future date of birth. Rejects garbage input (not a dedup/fraud check -- see suspicion flags for that). */
+function isValidDob(dob: string): boolean {
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  if (d.getTime() > now.getTime()) return false;
+  if (d.getFullYear() < 1900) return false;
+  return true;
+}
+
+/** Age in whole years as of now, from a validated DOB string. */
+function ageFromDob(dob: string): number {
+  const d = new Date(dob);
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const hasHadBirthdayThisYear = (now.getMonth() > d.getMonth()) || (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return age;
+}
+
+// Lightweight in-memory per-IP rate limit on vote submission -- a blunt
+// deterrent against a scripted flood, independent of the per-phone dedup
+// constraint. No new dependency; a Map is enough at this scale.
+const VOTE_RATE_LIMIT_WINDOW_MS = 60_000;
+const VOTE_RATE_LIMIT_MAX = 8;
+const voteRateLimitLog = new Map<string, number[]>();
+function isVoteRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const timestamps = (voteRateLimitLog.get(ip) || []).filter(t => now - t < VOTE_RATE_LIMIT_WINDOW_MS);
+  timestamps.push(now);
+  voteRateLimitLog.set(ip, timestamps);
+  return timestamps.length > VOTE_RATE_LIMIT_MAX;
+}
+
+/** Maps a `voting_options` row to the camelCase shape the frontend expects, with an optional vote count merged in by the caller. */
+function mapVotingOptionRow(row: any, voteCount?: number): any {
+  return {
+    id: row.id,
+    label: row.label,
+    photoUrl: row.photo_url || undefined,
+    displayOrder: row.display_order,
+    ...(voteCount !== undefined ? { voteCount } : {})
+  };
+}
+
+/** Maps a `votings` row (with its options already attached) to the camelCase shape the frontend expects. */
+function mapVotingRow(row: any, options: any[], totalVotes: number): any {
+  return {
+    id: row.id,
+    question: row.question,
+    questionHi: row.question_hi || undefined,
+    questionOr: row.question_or || undefined,
+    status: row.status,
+    options,
+    totalVotes,
+    createdAt: row.created_at,
+    openedAt: row.opened_at || undefined,
+    closedAt: row.closed_at || undefined
+  };
+}
+
+/** Fetches one voting's options with live (non-invalidated) vote counts, and the voting's total. */
+async function getVotingOptionsWithCounts(votingId: string) {
+  const { data: options, error: optionsError } = await supabase
+    .from('voting_options')
+    .select('*')
+    .eq('voting_id', votingId)
+    .order('display_order', { ascending: true });
+  if (optionsError) throw optionsError;
+
+  const { data: votes, error: votesError } = await supabase
+    .from('votes')
+    .select('option_id')
+    .eq('voting_id', votingId)
+    .eq('is_invalidated', false);
+  if (votesError) throw votesError;
+
+  const counts = new Map<string, number>();
+  for (const v of votes || []) {
+    counts.set(v.option_id, (counts.get(v.option_id) || 0) + 1);
+  }
+
+  const mappedOptions = (options || []).map(o => mapVotingOptionRow(o, counts.get(o.id) || 0));
+  const totalVotes = mappedOptions.reduce((sum, o) => sum + (o.voteCount || 0), 0);
+  return { options: mappedOptions, totalVotes };
+}
+
+/**
+ * @route POST /api/votings
+ * @description Module 1: create a voting question with its initial options. Starts in 'draft' -- invisible at /vote until explicitly opened.
+ */
+app.post('/api/votings', requireVotingManage, async (req, res) => {
+  const { question, questionHi, questionOr, options } = req.body as {
+    question?: string; questionHi?: string; questionOr?: string; options?: { label: string }[];
+  };
+
+  if (!question || !question.trim()) {
+    return res.status(400).json({ error: 'Question is required' });
+  }
+  const cleanOptions = (options || []).map(o => (o.label || '').trim()).filter(Boolean);
+  if (cleanOptions.length < 2) {
+    return res.status(400).json({ error: 'At least 2 options are required' });
+  }
+
+  try {
+    const { data: voting, error: votingError } = await supabase
+      .from('votings')
+      .insert({ question: question.trim(), question_hi: questionHi?.trim() || null, question_or: questionOr?.trim() || null })
+      .select('*')
+      .single();
+    if (votingError) throw votingError;
+
+    const { error: optionsError } = await supabase
+      .from('voting_options')
+      .insert(cleanOptions.map((label, i) => ({ voting_id: voting.id, label, display_order: i })));
+    if (optionsError) throw optionsError;
+
+    const { options: mappedOptions, totalVotes } = await getVotingOptionsWithCounts(voting.id);
+    logger.info('Voting created', { votingId: voting.id });
+    res.status(201).json(mapVotingRow(voting, mappedOptions, totalVotes));
+  } catch (error: any) {
+    logger.error('Error creating voting', error);
+    res.status(500).json({ error: error.message || 'Failed to create voting' });
+  }
+});
+
+/**
+ * @route GET /api/votings
+ * @description Module 1 + 3: every non-deleted voting with its options and live vote counts, for Manage Votings and Monitor.
+ */
+app.get('/api/votings', requireVotingStaff, async (req, res) => {
+  try {
+    const { data: votings, error } = await supabase
+      .from('votings')
+      .select('*')
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const result = await Promise.all((votings || []).map(async v => {
+      const { options, totalVotes } = await getVotingOptionsWithCounts(v.id);
+      return mapVotingRow(v, options, totalVotes);
+    }));
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error fetching votings', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch votings' });
+  }
+});
+
+/**
+ * @route PATCH /api/votings/:id
+ * @description Module 1: edit question text/translations, or move status draft -> open -> closed. Opening requires at least 2 options already.
+ */
+app.patch('/api/votings/:id', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  const { question, questionHi, questionOr, status } = req.body as {
+    question?: string; questionHi?: string; questionOr?: string; status?: string;
+  };
+
+  if (status && !['draft', 'open', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .from('votings').select('*').eq('id', id).eq('is_deleted', false).single();
+    if (fetchError || !existing) return res.status(404).json({ error: 'Voting not found' });
+
+    if (status === 'open' && existing.status !== 'open') {
+      const { count, error: countError } = await supabase
+        .from('voting_options').select('id', { count: 'exact', head: true }).eq('voting_id', id);
+      if (countError) throw countError;
+      if (!count || count < 2) {
+        return res.status(400).json({ error: 'Add at least 2 options before opening this voting' });
+      }
+    }
+
+    const updateData: any = {};
+    if (question !== undefined) updateData.question = question.trim();
+    if (questionHi !== undefined) updateData.question_hi = questionHi?.trim() || null;
+    if (questionOr !== undefined) updateData.question_or = questionOr?.trim() || null;
+    if (status !== undefined) {
+      updateData.status = status;
+      if (status === 'open' && !existing.opened_at) updateData.opened_at = new Date().toISOString();
+      if (status === 'closed') updateData.closed_at = new Date().toISOString();
+    }
+
+    const { data: updated, error } = await supabase
+      .from('votings').update(updateData).eq('id', id).select('*').single();
+    if (error) throw error;
+
+    const { options, totalVotes } = await getVotingOptionsWithCounts(id);
+    const result = mapVotingRow(updated, options, totalVotes);
+    broadcastStateUpdate('voting:updated', result);
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error updating voting', error);
+    res.status(500).json({ error: error.message || 'Failed to update voting' });
+  }
+});
+
+/**
+ * @route DELETE /api/votings/:id
+ * @description Module 1: soft-delete, same irreversible-flag pattern as events/complaints.
+ */
+app.delete('/api/votings/:id', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { error } = await supabase.from('votings').update({ is_deleted: true }).eq('id', id);
+    if (error) throw error;
+    broadcastStateUpdate('voting:deleted', { id });
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting voting', error);
+    res.status(500).json({ error: error.message || 'Failed to delete voting' });
+  }
+});
+
+/**
+ * @route POST /api/votings/:id/options
+ * @description Module 1: add one more option to a voting that isn't closed yet.
+ */
+app.post('/api/votings/:id/options', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  const { label } = req.body as { label?: string };
+  if (!label || !label.trim()) return res.status(400).json({ error: 'Label is required' });
+
+  try {
+    const { data: voting, error: votingError } = await supabase
+      .from('votings').select('status').eq('id', id).eq('is_deleted', false).single();
+    if (votingError || !voting) return res.status(404).json({ error: 'Voting not found' });
+    if (voting.status === 'closed') return res.status(400).json({ error: 'This voting is closed' });
+
+    const { count, error: countError } = await supabase
+      .from('voting_options').select('id', { count: 'exact', head: true }).eq('voting_id', id);
+    if (countError) throw countError;
+
+    const { data: option, error } = await supabase
+      .from('voting_options')
+      .insert({ voting_id: id, label: label.trim(), display_order: count || 0 })
+      .select('*').single();
+    if (error) throw error;
+
+    res.status(201).json(mapVotingOptionRow(option, 0));
+  } catch (error: any) {
+    logger.error('Error adding voting option', error);
+    res.status(500).json({ error: error.message || 'Failed to add option' });
+  }
+});
+
+/**
+ * @route PATCH /api/voting-options/:id
+ * @description Module 1: edit a label/order, or set its photo (photoPath, already uploaded via the signed-upload endpoint below).
+ */
+app.patch('/api/voting-options/:id', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  const { label, displayOrder, photoPath } = req.body as { label?: string; displayOrder?: number; photoPath?: string };
+
+  if (photoPath && !photoPath.startsWith(`${id}/`)) {
+    return res.status(400).json({ error: 'Path mismatch' });
+  }
+
+  try {
+    const updateData: any = {};
+    if (label !== undefined) updateData.label = label.trim();
+    if (displayOrder !== undefined) updateData.display_order = displayOrder;
+    if (photoPath) {
+      const { data: { publicUrl } } = supabase.storage.from('voting-media').getPublicUrl(photoPath);
+      updateData.photo_url = `${publicUrl}?v=${Date.now()}`;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('voting_options').update(updateData).eq('id', id).select('*').single();
+    if (error || !updated) return res.status(404).json({ error: 'Option not found' });
+
+    res.json(mapVotingOptionRow(updated));
+  } catch (error: any) {
+    logger.error('Error updating voting option', error);
+    res.status(500).json({ error: error.message || 'Failed to update option' });
+  }
+});
+
+/**
+ * @route POST /api/voting-options/:id/photo/signed-upload
+ * @description Module 1: short-lived signed Storage upload URL for an optional option photo.
+ */
+app.post('/api/voting-options/:id/photo/signed-upload', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: existing, error: fetchError } = await supabase.from('voting_options').select('id').eq('id', id).single();
+    if (fetchError || !existing) return res.status(404).json({ error: 'Option not found' });
+
+    const path = `${id}/photo-${Date.now()}.jpg`;
+    const { data, error } = await supabase.storage.from('voting-media').createSignedUploadUrl(path);
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error creating signed upload URL for voting option photo', error);
+    res.status(500).json({ error: error.message || 'Failed to create signed upload URL' });
+  }
+});
+
+/**
+ * @route DELETE /api/voting-options/:id
+ * @description Module 1: remove an option -- blocked once it has any votes, to protect tally integrity.
+ */
+app.delete('/api/voting-options/:id', requireVotingManage, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { count, error: countError } = await supabase
+      .from('votes').select('id', { count: 'exact', head: true }).eq('option_id', id);
+    if (countError) throw countError;
+    if (count && count > 0) {
+      return res.status(400).json({ error: 'Cannot remove an option that already has votes' });
+    }
+
+    const { error } = await supabase.from('voting_options').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting voting option', error);
+    res.status(500).json({ error: error.message || 'Failed to delete option' });
+  }
+});
+
+/**
+ * @route GET /api/votings/open
+ * @description Module 2: public, unauthenticated -- every currently open voting with its options, for /vote. More than one can be open at once (no auto-close), so this is always an array.
+ */
+app.get('/api/votings/open', async (req, res) => {
+  try {
+    const { data: votings, error } = await supabase
+      .from('votings').select('*').eq('status', 'open').eq('is_deleted', false).order('created_at', { ascending: true });
+    if (error) throw error;
+
+    const result = await Promise.all((votings || []).map(async v => {
+      const { data: options, error: optionsError } = await supabase
+        .from('voting_options').select('*').eq('voting_id', v.id).order('display_order', { ascending: true });
+      if (optionsError) throw optionsError;
+      return {
+        id: v.id,
+        question: v.question,
+        questionHi: v.question_hi || undefined,
+        questionOr: v.question_or || undefined,
+        options: (options || []).map(o => mapVotingOptionRow(o))
+      };
+    }));
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error fetching open votings', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch open votings' });
+  }
+});
+
+/**
+ * @route POST /api/votes
+ * @description Module 2: public, unauthenticated -- cast a vote. The one hard
+ * rule is UNIQUE(voting_id, voter_phone) at the database level; everything
+ * else here (DOB plausibility, shared device, IP burst) only adds
+ * `suspicion_flags` for a human to review in Module 3, never a block.
+ */
+app.post('/api/votes', async (req, res) => {
+  const { votingId, optionId, voterName, voterPhone, voterDob, deviceFingerprint } = req.body as {
+    votingId?: string; optionId?: string; voterName?: string; voterPhone?: string; voterDob?: string; deviceFingerprint?: string;
+  };
+
+  if (!votingId || !optionId) return res.status(400).json({ error: 'Missing voting or option' });
+  if (!voterName || !voterName.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (voterName.trim().length > 200) return res.status(400).json({ error: 'Name is too long' });
+  if (!voterPhone || !voterPhone.trim()) return res.status(400).json({ error: 'Phone number is required' });
+  const normalizedPhone = normalizePhone(voterPhone);
+  if (!normalizedPhone) return res.status(400).json({ error: 'Please enter a valid phone number' });
+  if (!voterDob || !isValidDob(voterDob)) return res.status(400).json({ error: 'Please enter a valid date of birth' });
+  if (!deviceFingerprint || deviceFingerprint.length < 8 || deviceFingerprint.length > 200) {
+    return res.status(400).json({ error: 'Unable to verify this device. Please refresh and try again.' });
+  }
+
+  const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+  if (isVoteRateLimited(ipAddress)) {
+    return res.status(429).json({ error: 'Too many attempts. Please wait a moment and try again.' });
+  }
+
+  try {
+    const { data: voting, error: votingError } = await supabase
+      .from('votings').select('id, status').eq('id', votingId).eq('is_deleted', false).single();
+    if (votingError || !voting) return res.status(404).json({ error: 'This voting could not be found.' });
+    if (voting.status !== 'open') return res.status(400).json({ error: 'This voting is not currently open.' });
+
+    const { data: option, error: optionError } = await supabase
+      .from('voting_options').select('id').eq('id', optionId).eq('voting_id', votingId).single();
+    if (optionError || !option) return res.status(400).json({ error: 'Invalid option selected.' });
+
+    // Suspicion flags -- informational only, computed before insert so the
+    // flagging is atomic with the vote itself.
+    const suspicionFlags: string[] = [];
+    const age = ageFromDob(voterDob);
+    if (age < 5 || age > 110) suspicionFlags.push('implausible_dob');
+
+    const { count: sameDeviceCount, error: deviceError } = await supabase
+      .from('votes').select('id', { count: 'exact', head: true })
+      .eq('voting_id', votingId).eq('device_fingerprint', deviceFingerprint);
+    if (deviceError) throw deviceError;
+    if (sameDeviceCount && sameDeviceCount > 0) suspicionFlags.push('shared_device');
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { count: recentIpCount, error: ipError } = await supabase
+      .from('votes').select('id', { count: 'exact', head: true })
+      .eq('voting_id', votingId).eq('ip_address', ipAddress).gte('created_at', fiveMinutesAgo);
+    if (ipError) throw ipError;
+    if (recentIpCount && recentIpCount >= 5) suspicionFlags.push('ip_burst');
+
+    const { error: insertError } = await supabase.from('votes').insert({
+      voting_id: votingId,
+      option_id: optionId,
+      voter_name: voterName.trim(),
+      voter_phone: normalizedPhone,
+      voter_dob: voterDob,
+      device_fingerprint: deviceFingerprint,
+      ip_address: ipAddress,
+      user_agent: req.headers['user-agent'] || 'unknown',
+      suspicion_flags: suspicionFlags
+    });
+
+    if (insertError) {
+      // 23505 = unique_violation -- the UNIQUE(voting_id, voter_phone)
+      // constraint is what's actually stopping a repeat vote here.
+      if (insertError.code === '23505') {
+        return res.status(409).json({ error: "You've already voted in this poll." });
+      }
+      throw insertError;
+    }
+
+    logger.info('Vote cast', { votingId, optionId, suspicionFlags });
+
+    const { options, totalVotes } = await getVotingOptionsWithCounts(votingId);
+    broadcastStateUpdate('voting:tally', { votingId, options, totalVotes });
+
+    res.status(201).json({ success: true });
+  } catch (error: any) {
+    logger.error('Error casting vote', error);
+    res.status(500).json({ error: error.message || 'Failed to cast vote' });
+  }
+});
+
+/**
+ * @route GET /api/votings/:id/tally
+ * @description Module 4: public, unauthenticated live counts (excluding invalidated votes) for the projected Stage screen's initial load; live updates after that arrive over the existing SSE stream as a `voting:tally` event.
+ */
+app.get('/api/votings/:id/tally', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: voting, error: votingError } = await supabase
+      .from('votings').select('id, question, question_hi, question_or, status').eq('id', id).eq('is_deleted', false).single();
+    if (votingError || !voting) return res.status(404).json({ error: 'Voting not found' });
+
+    const { options, totalVotes } = await getVotingOptionsWithCounts(id);
+    res.json({
+      votingId: voting.id,
+      question: voting.question,
+      questionHi: voting.question_hi || undefined,
+      questionOr: voting.question_or || undefined,
+      status: voting.status,
+      options,
+      totalVotes
+    });
+  } catch (error: any) {
+    logger.error('Error fetching voting tally', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch tally' });
+  }
+});
+
+/**
+ * @route GET /api/votings/:id/votes
+ * @description Module 3: admin or moderator -- every vote cast for this voting, with suspicion flags, for the Monitor & Flag screen. Voter PII (name/phone/DOB/IP) is never exposed outside this endpoint.
+ */
+app.get('/api/votings/:id/votes', requireVotingStaff, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: votes, error } = await supabase
+      .from('votes')
+      .select('*, voting_options(label)')
+      .eq('voting_id', id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    res.json((votes || []).map(v => ({
+      id: v.id,
+      votingId: v.voting_id,
+      optionId: v.option_id,
+      optionLabel: v.voting_options?.label || 'Unknown',
+      voterName: v.voter_name,
+      voterPhone: v.voter_phone,
+      voterDob: v.voter_dob,
+      deviceFingerprint: v.device_fingerprint,
+      ipAddress: v.ip_address || undefined,
+      suspicionFlags: v.suspicion_flags || [],
+      isInvalidated: v.is_invalidated,
+      invalidatedReason: v.invalidated_reason || undefined,
+      invalidatedBy: v.invalidated_by || undefined,
+      createdAt: v.created_at
+    })));
+  } catch (error: any) {
+    logger.error('Error fetching votes', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch votes' });
+  }
+});
+
+/**
+ * @route PATCH /api/votes/:id/flag
+ * @description Module 3: admin or moderator -- mark a vote invalid (fake) or reverse that. Invalidated votes are excluded from every tally immediately.
+ */
+app.patch('/api/votes/:id/flag', requireVotingStaff, async (req, res) => {
+  const { id } = req.params;
+  const { invalidated, reason } = req.body as { invalidated?: boolean; reason?: string };
+  if (typeof invalidated !== 'boolean') return res.status(400).json({ error: '"invalidated" must be a boolean' });
+
+  try {
+    const updateData: any = {
+      is_invalidated: invalidated,
+      invalidated_reason: invalidated ? (reason?.trim() || null) : null,
+      invalidated_by: invalidated ? (req as any).appUser?.email : null,
+      invalidated_at: invalidated ? new Date().toISOString() : null
+    };
+
+    const { data: updated, error } = await supabase
+      .from('votes').update(updateData).eq('id', id).select('voting_id').single();
+    if (error || !updated) return res.status(404).json({ error: 'Vote not found' });
+
+    logger.info('Vote flag changed', { voteId: id, invalidated, by: (req as any).appUser?.email });
+
+    const { options, totalVotes } = await getVotingOptionsWithCounts(updated.voting_id);
+    broadcastStateUpdate('voting:tally', { votingId: updated.voting_id, options, totalVotes });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error flagging vote', error);
+    res.status(500).json({ error: error.message || 'Failed to update vote' });
+  }
+});
+
 /** Maps a `users` row (with its embedded `user_role_assignments`) to the camelCase shape the frontend expects. */
 function mapUserRow(row: any): AppUser {
   return {

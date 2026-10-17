@@ -8,6 +8,8 @@ import {ComplaintsDashboard} from './components/ComplaintsDashboard.tsx';
 import {ChooserPage} from './components/ChooserPage.tsx';
 import {RootRedirect} from './components/RootRedirect.tsx';
 import {GuidePage} from './components/GuidePage.tsx';
+import {VotePage} from './components/VotePage.tsx';
+import {VoteStagePage} from './components/VoteStagePage.tsx';
 import './index.css';
 import './i18n';
 
@@ -25,6 +27,8 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/ask" element={<App />} />
         <Route path="/e/:joinCode" element={<App />} />
         <Route path="/complain" element={<ComplaintPage />} />
+        <Route path="/vote" element={<VotePage />} />
+        <Route path="/vote/stage" element={<VoteStagePage />} />
         <Route path="/dashboard" element={<ComplaintsDashboard />} />
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/logs" element={<LogsPage />} />

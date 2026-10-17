@@ -8,8 +8,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
+import { VotingManagerDrawer } from './VotingManagerDrawer';
+import { VoteMonitorDrawer } from './VoteMonitorDrawer';
 
 const ALL_ROLES: UserRole[] = ['admin', 'moderator', 'panelist', 'stage', 'management'];
 
@@ -119,13 +121,15 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // Manage Events/Categories/Users drawers are mutually exclusive (accordion) --
   // opening one closes whichever was already open, so there's never more than
   // one to lose track of. Opening a drawer also smooth-scrolls it into view.
-  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | 'artifacts' | 'rules' | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<'events' | 'categories' | 'users' | 'artifacts' | 'rules' | 'votingManager' | 'voteMonitor' | null>(null);
   const showEvents = openDrawer === 'events';
   const showCategories = openDrawer === 'categories';
   const showUsers = openDrawer === 'users';
   const showArtifacts = openDrawer === 'artifacts';
   const showRules = openDrawer === 'rules';
-  const toggleDrawer = (drawer: 'events' | 'categories' | 'users' | 'artifacts' | 'rules') => {
+  const showVotingManager = openDrawer === 'votingManager';
+  const showVoteMonitor = openDrawer === 'voteMonitor';
+  const toggleDrawer = (drawer: 'events' | 'categories' | 'users' | 'artifacts' | 'rules' | 'votingManager' | 'voteMonitor') => {
     setOpenDrawer(prev => (prev === drawer ? null : drawer));
   };
   const closeDrawer = () => setOpenDrawer(null);
@@ -135,9 +139,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const usersDrawerRef = useRef<HTMLDivElement>(null);
   const artifactsDrawerRef = useRef<HTMLDivElement>(null);
   const rulesDrawerRef = useRef<HTMLDivElement>(null);
+  const votingManagerDrawerRef = useRef<HTMLDivElement>(null);
+  const voteMonitorDrawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ref = openDrawer === 'events' ? eventsDrawerRef : openDrawer === 'categories' ? categoriesDrawerRef : openDrawer === 'users' ? usersDrawerRef : openDrawer === 'artifacts' ? artifactsDrawerRef : openDrawer === 'rules' ? rulesDrawerRef : null;
+    const ref = openDrawer === 'events' ? eventsDrawerRef
+      : openDrawer === 'categories' ? categoriesDrawerRef
+      : openDrawer === 'users' ? usersDrawerRef
+      : openDrawer === 'artifacts' ? artifactsDrawerRef
+      : openDrawer === 'rules' ? rulesDrawerRef
+      : openDrawer === 'votingManager' ? votingManagerDrawerRef
+      : openDrawer === 'voteMonitor' ? voteMonitorDrawerRef
+      : null;
     ref?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [openDrawer]);
 
@@ -525,6 +538,24 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               <span>Rules</span>
             </button>
           )}
+
+          {isAdmin && (
+            <button
+              onClick={() => toggleDrawer('votingManager')}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+            >
+              <VoteIcon className="w-4 h-4" />
+              <span>Manage Votings</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => toggleDrawer('voteMonitor')}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-secondary hover:bg-surface-hover text-secondary border border-divider flex items-center space-x-1.5 transition"
+          >
+            <ListChecks className="w-4 h-4" />
+            <span>Vote Monitor</span>
+          </button>
 
           <button
             onClick={() => toggleDrawer('artifacts')}
@@ -1116,6 +1147,34 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Manage Votings Drawer (admin only) -- Module 1 of the voting feature. */}
+      {isAdmin && showVotingManager && (
+        <div ref={votingManagerDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn scroll-mt-24">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
+              <VoteIcon className="w-5 h-5 text-indigo-600" />
+              <span>Manage Votings</span>
+            </h3>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
+          </div>
+          <VotingManagerDrawer />
+        </div>
+      )}
+
+      {/* Vote Monitor Drawer (admin or moderator) -- Module 3 of the voting feature. */}
+      {showVoteMonitor && (
+        <div ref={voteMonitorDrawerRef} className="bg-surface rounded-2xl p-6 border border-divider-strong shadow-xl space-y-4 animate-fadeIn scroll-mt-24">
+          <div className="flex items-center justify-between border-b border-divider pb-3">
+            <h3 className="font-bold text-primary text-base flex items-center space-x-2">
+              <ListChecks className="w-5 h-5 text-indigo-600" />
+              <span>Vote Monitor</span>
+            </h3>
+            <button onClick={closeDrawer} className="text-muted hover:text-secondary font-bold">✕</button>
+          </div>
+          <VoteMonitorDrawer />
         </div>
       )}
 

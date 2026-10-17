@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-17] - Theme Song Voting (4 modules)
+
+- **New voting feature, designed and approved via a shared Artifact review before any code was written** (see the design doc's Open Questions thread for the decisions behind every choice below). Four modules:
+    1. **Manage Votings** (admin-only, new drawer in the Moderator screen): write a question (with optional Hindi/Odia translation fields + the same AI Translate button event titles already use), add 2+ options (each with an optional photo via the same signed-upload pattern as event branding), then move it draft → open → closed. More than one voting can be open at once -- no auto-close.
+    2. **`/vote`** (new, public, no login, EN/HI/OR): shows whichever voting(s) are open -- straight to the options with exactly one, a short picker first with more than one. Picking an option asks for name, phone, and date of birth.
+    3. **Vote Monitor** (new drawer, admin OR moderator -- not admin-only, unlike Manage Votings): every vote cast, with auto-computed suspicion badges, and a one-click Invalidate/Reinstate that excludes a vote from every tally immediately.
+    4. **`/vote/stage`** (new, standalone page with its own sign-in, admin/moderator/stage): a projected live results screen -- animated bars per option, updating in real time over the app's existing SSE stream (`voting:tally` events), no polling. Staff pick which voting to project, including an already-closed one, so a final result can stay up after a poll ends.
+- **Anti-duplicate-vote design**: phone number is the *only* hard block -- a real `UNIQUE(voting_id, voter_phone)` constraint enforced by Postgres itself. Name is stored as typed and is never part of the dedup key, so the obvious trick (resubmitting as `GRACE` instead of `Grace`) cannot open a second vote; verified live by submitting the same phone with a different name case and getting a 409. Date of birth, IP address, and a client-computed device fingerprint (hashed entirely in-browser via `crypto.subtle.digest`, no new dependency, no raw signal ever sent) are captured per vote but deliberately never used to block one -- a venue's shared WiFi puts many real attendees behind one IP, and a shared device isn't automatically fraud. Instead they feed `suspicion_flags` (`shared_device`, `ip_burst`, `implausible_dob`), informational badges a human reviews in Monitor; confirmed live that a second vote from an already-seen device gets auto-flagged without being blocked.
+- **New tables** `votings`, `voting_options`, `votes` (migration 25 in `database/schema.sql`), plus a `voting-media` Storage bucket for option photos -- same default-deny RLS and soft-delete conventions as every other table in this project.
+- **Note**: `/root`'s chooser now shows three options (Ask a Question / Raise a Complaint / Vote) instead of two.
+
 ## [2026-10-13] - Admin Rules Tab, Role Access Hints, Multi-Event Moderator Fixes
 
 - **New admin-only "Rules" tab in the Moderator screen**: both `rules` table switches (`complaints_open` and the `prod_release` chooser rollout flag) can now be flipped from the UI instead of needing direct Supabase access. New `PATCH /api/rules/prod-release` (admin-only, mirroring the existing complaints-open endpoint) backs it.

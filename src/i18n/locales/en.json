@@ -128,6 +128,32 @@
     "askQuestion": "Ask a Question",
     "askQuestionDesc": "Submit a question for a live event's Q&A.",
     "raiseComplaint": "Raise a Complaint",
-    "raiseComplaintDesc": "Tell us about an issue. No login needed."
+    "raiseComplaintDesc": "Tell us about an issue. No login needed.",
+    "castVote": "Vote",
+    "castVoteDesc": "Cast your vote. No login needed."
+  },
+  "vote": {
+    "pageTitle": "Vote",
+    "pageSubtitle": "Cast your vote. No login needed.",
+    "loading": "Loading…",
+    "choosePoll": "Choose a poll",
+    "backToPolls": "Back to polls",
+    "noneOpenTitle": "No active voting right now",
+    "noneOpenSubtext": "There's nothing open to vote on at the moment. Please check back later.",
+    "changeOption": "Change my choice",
+    "yourChoice": "Your choice",
+    "nameLabel": "Your Name",
+    "namePlaceholder": "Enter your name",
+    "phoneLabel": "Phone Number",
+    "phonePlaceholder": "e.g. +91 98765 43210",
+    "dobLabel": "Date of Birth",
+    "nameRequired": "Please enter your name.",
+    "phoneRequired": "Please enter your phone number.",
+    "dobRequired": "Please enter your date of birth.",
+    "submitButton": "Submit Vote",
+    "submitting": "Submitting…",
+    "submitErrorFallback": "Failed to submit your vote. Please try again.",
+    "successTitle": "Vote recorded",
+    "successSubtext": "Thanks for voting! You can close this page now."
   }
 }

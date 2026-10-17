@@ -250,3 +250,73 @@ export interface ComplaintLookupResult {
   assignedAt?: string;
   resolvedAt?: string;
 }
+
+/**
+ * A voting's lifecycle: draft (being set up, not shown at /vote yet) ->
+ * open (live at /vote and /vote/stage) -> closed (no longer accepting
+ * votes, but its final tally stays visible).
+ */
+export type VotingStatus = 'draft' | 'open' | 'closed';
+
+/** One selectable choice within a voting (e.g. one participant's song). */
+export interface VotingOption {
+  id: string;
+  label: string;
+  photoUrl?: string;
+  displayOrder: number;
+  /** Only present where the caller is allowed to see live counts (Manage Votings, Monitor, /vote/stage, and the public tally endpoint) -- never echoed back from vote submission itself. */
+  voteCount?: number;
+}
+
+/**
+ * A voting question as seen by admin (Manage Votings) and moderator/admin
+ * (Monitor). The public /vote and /vote/stage views get a narrower shape --
+ * see `PublicVoting`.
+ */
+export interface Voting {
+  id: string;
+  question: string;
+  questionHi?: string;
+  questionOr?: string;
+  status: VotingStatus;
+  options: VotingOption[];
+  totalVotes: number;
+  createdAt: string;
+  openedAt?: string;
+  closedAt?: string;
+}
+
+/**
+ * The public, unauthenticated shape of an open voting -- used by /vote (to
+ * show the question/options) and /vote/stage (to show live counts). Carries
+ * no admin-only fields (no suspicion data, no draft/closed votings).
+ */
+export interface PublicVoting {
+  id: string;
+  question: string;
+  questionHi?: string;
+  questionOr?: string;
+  options: VotingOption[];
+}
+
+/**
+ * One cast vote as seen in the Monitor & Flag screen (admin or moderator).
+ * Never exposed publicly -- voter PII (name/phone/DOB/IP) only ever reaches
+ * staff reviewing for fraud.
+ */
+export interface VoteRecord {
+  id: string;
+  votingId: string;
+  optionId: string;
+  optionLabel: string;
+  voterName: string;
+  voterPhone: string;
+  voterDob: string;
+  deviceFingerprint: string;
+  ipAddress?: string;
+  suspicionFlags: string[];
+  isInvalidated: boolean;
+  invalidatedReason?: string;
+  invalidatedBy?: string;
+  createdAt: string;
+}
