@@ -121,6 +121,19 @@ export const VoteStagePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess]);
 
+  // Safety-net poll, independent of SSE health -- same reasoning as the
+  // one in useRealTimeQnA.ts: on Vercel, a vote cast against one serverless
+  // instance can't reach an SSE connection held open by a different one,
+  // so this screen could otherwise go stale indefinitely with no visible
+  // error. A projected results screen above all must self-heal without
+  // anyone having to refresh it.
+  useEffect(() => {
+    if (!hasAccess) return;
+    const pollInterval = setInterval(fetchVotings, 8000);
+    return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAccess]);
+
   const submitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);

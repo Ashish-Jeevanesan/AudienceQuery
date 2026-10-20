@@ -221,10 +221,26 @@ export function useRealTimeQnA(joinCode?: string) {
 
     connectSSE();
 
+    // Safety-net poll, independent of SSE health: in production this app
+    // runs on Vercel as serverless functions (see api/index.ts), where the
+    // `clients` array server.ts broadcasts to is only shared within a
+    // single warm function instance -- a write handled by a *different*
+    // instance than the one holding a given browser's SSE connection has
+    // no way to reach it, so that screen can go quiet indefinitely with no
+    // error on either side (this never showed up in local dev, which runs
+    // as one persistent process where every request shares the same
+    // `clients` array). A full-state re-fetch on an interval means a
+    // screen left open unattended -- the Stage display above all --
+    // self-heals within one poll instead of needing a manual refresh.
+    const pollInterval = setInterval(() => {
+      fetchState(joinCodeRef.current);
+    }, 15000);
+
     return () => {
       if (eventSource) {
         eventSource.close();
       }
+      clearInterval(pollInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
