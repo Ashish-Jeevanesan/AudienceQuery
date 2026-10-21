@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-21] - "Answer Later" Tab for Questions Answered Outside the Panel
+
+- **New Moderator screen tab, "Answer Later"**: a question marked this way (one click from the Review Inbox or Public Feed) moves into its own lane, separate from the live panel/stage pipeline entirely -- a new `answer_later` status value (migration 26 in `database/schema.sql`), not a reuse of the existing `answered` status, since that one already drives the Live/Answered tab and means something different ("answered live on stage").
+- **Inside the tab**: a **Pull Back** button to undo the move if it was set aside by mistake; a textarea ("Answer here") that autosaves on blur for drafting the actual answer; a **Share** button that saves the draft and opens the device's native share sheet with the question and answer clearly labeled and bolded in one single message (`*Question:* ... *Answer:* ...`), ready to drop into WhatsApp/Messages -- falls back to copying the same text to the clipboard where there's no native share sheet (most desktop browsers); and a **Mark Answered / Reopen** toggle that does *not* remove the question from the tab or change its status -- same spirit as the priority star, just a flag on the row, so "answered" never means "gone."
+- **Once marked Answered, Pull Back is disabled** (greyed out with an explanatory tooltip, same pattern as the expired-event toggle elsewhere in this screen) -- Reopen first, then Pull Back works again. Prevents accidentally moving a question that's already been dealt with.
+- **Not yet applied to the database** -- this migration needs to be run against Supabase before any of this works (confirmed live: attempting to use it before running the migration fails with `violates check constraint "questions_status_check"`, exactly as expected).
+
 ## [2026-10-21] - Recall a Question from the Panel Queue
 
 - **New "Recall to Inbox" button on any question that's been sent to Panel by mistake** (Moderator screen, Panel Queue tab): one click moves it straight back to `pending` -- out of the panelist's live queue immediately, back in the Review Inbox for re-review. Previously the only way to pull a question out of Panel's queue was Reject, which also worked (any status change moves it out of `pushed`) but dropped it into Rejected rather than back into the inbox, and needed a second step (Restore) to get it back to pending.

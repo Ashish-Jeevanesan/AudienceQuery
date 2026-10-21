@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks, Undo2 } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks, Undo2, Clock, Share2, Check } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 import { VotingManagerDrawer } from './VotingManagerDrawer';
 import { VoteMonitorDrawer } from './VoteMonitorDrawer';
@@ -53,7 +53,7 @@ interface ModeratorViewProps {
   users: AppUser[];
   isAdmin: boolean;
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
-  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string }) => Promise<void>;
+  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string; moderatorAnswerText?: string; moderatorAnswered?: boolean }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
   onCreateCategory: (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => void;
   onFetchEvents: () => void;
@@ -100,7 +100,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onTranslateText
 }) => {
   // State variables for filter tabs, search, and sorting
-  const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'rejected' | 'all'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'pushed' | 'approved' | 'answering_answered' | 'answer_later' | 'rejected' | 'all'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   // 'all' = every event's questions, or a specific event id to review one
@@ -109,6 +109,15 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // pick the one you want by name.
   const [eventFilter, setEventFilter] = useState<'all' | string>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'priority'>('recent');
+
+  // Answer Later tab: each question's drafted answer is edited inline (not
+  // in the shared edit modal), so it needs its own per-question draft state
+  // -- keyed by question id, seeded from the question's own saved text the
+  // first time its box is touched, so re-renders from polling/SSE don't
+  // clobber an in-progress, unsaved draft.
+  const [answerDraftById, setAnswerDraftById] = useState<Record<string, string>>({});
+  const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
+  const [answerSavedId, setAnswerSavedId] = useState<string | null>(null);
 
   // Edit Modal State for editing a specific question
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -264,6 +273,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const answeringCount = eventScopedQuestions.filter(q => q.status === 'answering').length;
   const answeredCount = eventScopedQuestions.filter(q => q.status === 'answered').length;
   const approvedCount = eventScopedQuestions.filter(q => q.status === 'approved').length;
+  const answerLaterCount = eventScopedQuestions.filter(q => q.status === 'answer_later').length;
 
   // Filter questions based on the active tab, category, and search query
   let filtered = questions.filter(q => {
@@ -271,6 +281,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
     if (activeTab === 'pushed') return q.status === 'pushed';
     if (activeTab === 'approved') return q.status === 'approved';
     if (activeTab === 'answering_answered') return q.status === 'answering' || q.status === 'answered';
+    if (activeTab === 'answer_later') return q.status === 'answer_later';
     if (activeTab === 'rejected') return q.status === 'rejected';
     return true;
   });
@@ -331,6 +342,54 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       setEditingQuestion(null);
     } catch (err: any) {
       setEditError(err?.message || 'Unable to save changes. Please try again.');
+    }
+  };
+
+  // --- Answer Later tab helpers ---
+
+  const getAnswerDraft = (q: Question) => answerDraftById[q.id] ?? q.moderatorAnswerText ?? '';
+
+  const saveAnswerDraft = async (q: Question) => {
+    setSavingAnswerId(q.id);
+    try {
+      await onEditQuestion(q.id, { moderatorAnswerText: getAnswerDraft(q) });
+      setAnswerSavedId(q.id);
+      setTimeout(() => setAnswerSavedId(prev => (prev === q.id ? null : prev)), 2000);
+    } catch {
+      // onEditQuestion already logs the error; the box just stays as typed.
+    } finally {
+      setSavingAnswerId(null);
+    }
+  };
+
+  const toggleAnswered = (q: Question) => {
+    onEditQuestion(q.id, { moderatorAnswered: !q.moderatorAnswered }).catch(() => {});
+  };
+
+  /**
+   * Shares the question + drafted answer as one message, with the two
+   * halves clearly labeled (and bolded for WhatsApp's *asterisk* markup),
+   * via the device's native share sheet. navigator.share is mobile-first
+   * (and some desktop browsers); where it's unavailable this falls back to
+   * copying the same text to the clipboard instead of silently failing.
+   */
+  const shareAnswer = async (q: Question) => {
+    await saveAnswerDraft(q);
+    const draft = getAnswerDraft(q);
+    const message = `*Question:*\n${q.text}\n\n*Answer:*\n${draft || '(no answer written yet)'}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: message });
+      } catch {
+        // Share sheet dismissed by the user -- not an error worth surfacing.
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(message);
+        window.alert("Sharing isn't available on this device/browser -- copied the question and answer to your clipboard instead.");
+      } catch {
+        window.alert('Unable to share or copy automatically. Please copy the question and answer manually.');
+      }
     }
   };
 
@@ -1246,6 +1305,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('answer_later')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
+              activeTab === 'answer_later'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-secondary hover:bg-surface-secondary'
+            }`}
+          >
+            <span>Answer Later</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-extrabold">{answerLaterCount}</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('rejected')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap ${
               activeTab === 'rejected'
@@ -1399,7 +1470,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         (Multi-Event Mode: not tied to "the live event",
                         there is no such singular thing); the server
                         enforces this too, this is just the UX reflection. */}
-                    {q.status !== 'pushed' && q.status !== 'answering' && (() => {
+                    {q.status !== 'pushed' && q.status !== 'answering' && q.status !== 'answer_later' && (() => {
                       const qEvent = events.find(e => e.id === q.eventId);
                       return qEvent?.isAcceptingQuestions && !qEvent?.isExpired ? (
                         <button
@@ -1421,6 +1492,38 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                       );
                     })()}
 
+                    {(q.status === 'pending' || q.status === 'approved') && (
+                      <button
+                        onClick={() => onUpdateStatus(q.id, 'answer_later')}
+                        className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition"
+                        title="Set this aside to answer personally later (e.g. over WhatsApp) instead of sending it through the panel"
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Answer Later</span>
+                      </button>
+                    )}
+
+                    {q.status === 'answer_later' && (
+                      q.moderatorAnswered ? (
+                        <span
+                          className="px-3 py-1.5 rounded-xl bg-surface-secondary text-disabled font-bold text-xs flex items-center space-x-1.5 border border-divider cursor-not-allowed"
+                          title="Already answered -- click Reopen below to undo that before pulling it back"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          <span>Pull Back</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => onUpdateStatus(q.id, 'pending')}
+                          className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition"
+                          title="Pull this back into the Review Inbox -- e.g. if it was set aside by mistake"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          <span>Pull Back</span>
+                        </button>
+                      )
+                    )}
+
                     {q.status === 'pushed' && (
                       <>
                         <span className="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center space-x-1 border border-indigo-200">
@@ -1439,9 +1542,19 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     )}
 
                     {q.status === 'answering' && (
-                      <span className="px-3 py-1.5 rounded-xl bg-rose-500 text-white font-bold text-xs flex items-center space-x-1 animate-pulse">
-                        <span>🎙️ Live</span>
-                      </span>
+                      <>
+                        <span className="px-3 py-1.5 rounded-xl bg-rose-500 text-white font-bold text-xs flex items-center space-x-1 animate-pulse">
+                          <span>🎙️ Live</span>
+                        </span>
+                        <button
+                          onClick={() => onUpdateStatus(q.id, 'pushed')}
+                          className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition"
+                          title="Pull this back off the stage and into the panel's queue -- e.g. if 'Answer Live' was hit by mistake"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          <span>Recall to Queue</span>
+                        </button>
+                      </>
                     )}
 
                     {/* Toggle Priority Star */}
@@ -1506,6 +1619,60 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   </div>
 
                 </div>
+
+                {q.status === 'answer_later' && (
+                  <div className="mt-4 pt-4 border-t border-divider space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-muted uppercase tracking-wider">Answer here</label>
+                      {q.moderatorAnswered ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Answered
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          <Clock className="w-3.5 h-3.5" /> Awaiting answer
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      value={getAnswerDraft(q)}
+                      onChange={(e) => setAnswerDraftById(d => ({ ...d, [q.id]: e.target.value }))}
+                      onBlur={() => saveAnswerDraft(q)}
+                      placeholder="Write the answer you'll send this person..."
+                      rows={3}
+                      className="w-full px-3 py-2.5 rounded-xl border border-divider text-sm text-primary bg-transparent outline-none focus:border-indigo-500 resize-none"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => saveAnswerDraft(q)}
+                        disabled={savingAnswerId === q.id}
+                        className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition disabled:opacity-60"
+                      >
+                        {answerSavedId === q.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        <span>{savingAnswerId === q.id ? 'Saving…' : answerSavedId === q.id ? 'Saved' : 'Save'}</span>
+                      </button>
+                      <button
+                        onClick={() => shareAnswer(q)}
+                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition"
+                        title="Share the question and answer together, e.g. over WhatsApp"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Share</span>
+                      </button>
+                      <button
+                        onClick={() => toggleAnswered(q)}
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center space-x-1.5 transition border ${
+                          q.moderatorAnswered
+                            ? 'bg-surface-secondary text-secondary hover:bg-surface-hover border-divider'
+                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
+                        }`}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{q.moderatorAnswered ? 'Reopen' : 'Mark Answered'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

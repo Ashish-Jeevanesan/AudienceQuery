@@ -1110,5 +1110,27 @@ VALUES ('voting-media', 'voting-media', true, 2097152, ARRAY['image/jpeg', 'imag
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
+-- 26. MIGRATION (2026-10-21): "Answer Later" lane for questions
+-- ============================================================================
+-- Lets a moderator set a question aside to answer personally (e.g. over
+-- WhatsApp/SMS) instead of pushing it through the live panel flow. New
+-- status value 'answer_later' puts it in its own Moderator-screen tab,
+-- separate from the existing pushed/answering/answered panel pipeline.
+-- Deliberately a *second* lane, not a reuse of 'answered' -- that value
+-- already means "answered live on stage" and feeds the Live/Answered tab's
+-- own filter; conflating the two would wrongly surface these here too.
+--
+-- Within the Answer Later tab, answering a question does NOT move it
+-- elsewhere or remove it from view -- moderator_answered just flips to
+-- true, same spirit as is_priority: a flag on the row, not a status change.
+ALTER TABLE questions DROP CONSTRAINT IF EXISTS questions_status_check;
+ALTER TABLE questions ADD CONSTRAINT questions_status_check
+  CHECK (status IN ('pending', 'approved', 'pushed', 'answering', 'answered', 'rejected', 'answer_later'));
+
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answer_text TEXT;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answered BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answered_at TIMESTAMP WITH TIME ZONE;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

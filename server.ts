@@ -459,6 +459,9 @@ app.get('/api/state', async (req, res) => {
       status: q.status,
       isPriority: q.is_priority,
       moderatorNotes: q.moderator_notes,
+      moderatorAnswerText: q.moderator_answer_text || undefined,
+      moderatorAnswered: !!q.moderator_answered,
+      moderatorAnsweredAt: q.moderator_answered_at || undefined,
       eventId: q.event_id,
       sessionId: q.session_id,
       deviceInfo: q.device_info,
@@ -1046,6 +1049,9 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
       status: updatedQuestion.status,
       isPriority: updatedQuestion.is_priority,
       moderatorNotes: updatedQuestion.moderator_notes,
+      moderatorAnswerText: updatedQuestion.moderator_answer_text || undefined,
+      moderatorAnswered: !!updatedQuestion.moderator_answered,
+      moderatorAnsweredAt: updatedQuestion.moderator_answered_at || undefined,
       eventId: updatedQuestion.event_id,
       sessionId: updatedQuestion.session_id,
       deviceInfo: updatedQuestion.device_info,
@@ -1071,7 +1077,7 @@ app.patch('/api/questions/:id/status', requireAdmin, async (req, res) => {
  */
 app.patch('/api/questions/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { text, categoryId, isPriority, moderatorNotes } = req.body;
+  const { text, categoryId, isPriority, moderatorNotes, moderatorAnswerText, moderatorAnswered } = req.body;
 
   try {
     // Build update object
@@ -1080,6 +1086,14 @@ app.patch('/api/questions/:id', requireAdmin, async (req, res) => {
     if (categoryId) updateData.category_id = categoryId;
     if (isPriority !== undefined) updateData.is_priority = !!isPriority;
     if (moderatorNotes !== undefined) updateData.moderator_notes = moderatorNotes;
+    // Answer Later lane: writing the drafted answer never changes status or
+    // moves the question -- it's a flag on the row, same spirit as
+    // is_priority, so "answered" never means "gone" here.
+    if (moderatorAnswerText !== undefined) updateData.moderator_answer_text = moderatorAnswerText;
+    if (moderatorAnswered !== undefined) {
+      updateData.moderator_answered = !!moderatorAnswered;
+      updateData.moderator_answered_at = moderatorAnswered ? new Date().toISOString() : null;
+    }
 
     // Update in Supabase
     const { data: updatedQuestion, error } = await supabase
@@ -1104,6 +1118,9 @@ app.patch('/api/questions/:id', requireAdmin, async (req, res) => {
       status: updatedQuestion.status,
       isPriority: updatedQuestion.is_priority,
       moderatorNotes: updatedQuestion.moderator_notes,
+      moderatorAnswerText: updatedQuestion.moderator_answer_text || undefined,
+      moderatorAnswered: !!updatedQuestion.moderator_answered,
+      moderatorAnsweredAt: updatedQuestion.moderator_answered_at || undefined,
       eventId: updatedQuestion.event_id,
       sessionId: updatedQuestion.session_id,
       deviceInfo: updatedQuestion.device_info,
