@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-21] - Recall a Question from the Panel Queue
+
+- **New "Recall to Inbox" button on any question that's been sent to Panel by mistake** (Moderator screen, Panel Queue tab): one click moves it straight back to `pending` -- out of the panelist's live queue immediately, back in the Review Inbox for re-review. Previously the only way to pull a question out of Panel's queue was Reject, which also worked (any status change moves it out of `pushed`) but dropped it into Rejected rather than back into the inbox, and needed a second step (Restore) to get it back to pending.
+
 ## [2026-10-20] - Fixed Stage Screens Going Stale in Production
 
 - **Root cause**: this app runs on Vercel as serverless functions (`api/index.ts`), but `server.ts`'s real-time broadcast (`/api/stream`) holds open SSE connections in a plain in-memory array (`clients`) that only exists within one function instance. A write (e.g. a panelist marking a question answered) handled by a *different* instance than the one holding a given browser's SSE connection has no way to reach it -- that screen goes silent with no error on either side until something else causes a refetch. This is invisible in local dev (`npm run dev` is one persistent process sharing a single `clients` array), which is why it never surfaced during this session's extensive local testing, but it's exactly the "leave the Stage screen open and nothing updates until you refresh it" bug reported from production.

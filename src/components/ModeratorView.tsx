@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks, Undo2 } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 import { VotingManagerDrawer } from './VotingManagerDrawer';
 import { VoteMonitorDrawer } from './VoteMonitorDrawer';
@@ -1422,10 +1422,20 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                     })()}
 
                     {q.status === 'pushed' && (
-                      <span className="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center space-x-1 border border-indigo-200">
-                        <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>In Panel's Queue</span>
-                      </span>
+                      <>
+                        <span className="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center space-x-1 border border-indigo-200">
+                          <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>In Panel's Queue</span>
+                        </span>
+                        <button
+                          onClick={() => onUpdateStatus(q.id, 'pending')}
+                          className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition"
+                          title="Pull this back out of the panel's queue and into the Review Inbox -- e.g. if it was sent by mistake"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          <span>Recall to Inbox</span>
+                        </button>
+                      </>
                     )}
 
                     {q.status === 'answering' && (
