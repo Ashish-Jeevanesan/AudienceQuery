@@ -44,6 +44,10 @@ export interface Question {
   moderatorNotes?: string;
   /** The moderator's drafted/sent answer, written in the Answer Later tab for questions answered personally (e.g. shared over WhatsApp) instead of live on panel. */
   moderatorAnswerText?: string;
+  /** Optional AI-suggested Hindi translation of moderatorAnswerText -- an editable suggestion, same pattern as event titles/category names. Included in the Share message when present. */
+  moderatorAnswerTextHi?: string;
+  /** Optional AI-suggested Odia translation of moderatorAnswerText -- same pattern as moderatorAnswerTextHi. */
+  moderatorAnswerTextOr?: string;
   /** True once the moderator has marked this answer_later question as answered -- the question stays in the Answer Later tab either way, just with this flag set, rather than moving on. */
   moderatorAnswered?: boolean;
   /** ISO 8601 timestamp of when moderatorAnswered was set true. */

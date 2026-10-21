@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-21] - Hindi/Odia Translation for Answer Later
+
+- **The Answer Later tab's drafted answer can now be translated**, same pattern as event titles/category names/voting questions elsewhere: a Translate icon next to the English answer box fills in AI-suggested Hindi and Odia translations (both editable, just a starting point). New `moderator_answer_text_hi`/`moderator_answer_text_or` columns, folded into migration 26 since it hasn't been applied yet -- still not run against Supabase.
+- **Share now includes whichever translations exist**, each clearly labeled, in the same single message as the English question and answer -- so sharing over WhatsApp sends one message with all the language versions together, not three separate shares.
+
 ## [2026-10-21] - "Answer Later" Tab for Questions Answered Outside the Panel
 
 - **New Moderator screen tab, "Answer Later"**: a question marked this way (one click from the Review Inbox or Public Feed) moves into its own lane, separate from the live panel/stage pipeline entirely -- a new `answer_later` status value (migration 26 in `database/schema.sql`), not a reuse of the existing `answered` status, since that one already drives the Live/Answered tab and means something different ("answered live on stage").

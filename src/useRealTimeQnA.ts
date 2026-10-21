@@ -354,6 +354,8 @@ export function useRealTimeQnA(joinCode?: string) {
     isPriority?: boolean;
     moderatorNotes?: string;
     moderatorAnswerText?: string;
+    moderatorAnswerTextHi?: string;
+    moderatorAnswerTextOr?: string;
     moderatorAnswered?: boolean;
   }) => {
     return runTracked(async () => {

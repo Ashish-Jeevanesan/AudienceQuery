@@ -1131,6 +1131,13 @@ ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answer_text TEXT;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answered BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answered_at TIMESTAMP WITH TIME ZONE;
 
+-- Optional AI-suggested Hindi/Odia translations of the drafted answer, same
+-- "editable suggestion" pattern as event titles/category names/voting
+-- questions elsewhere in this app -- included in the Share message
+-- alongside the English answer when present.
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answer_text_hi TEXT;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS moderator_answer_text_or TEXT;
+
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================

@@ -53,7 +53,7 @@ interface ModeratorViewProps {
   users: AppUser[];
   isAdmin: boolean;
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
-  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string; moderatorAnswerText?: string; moderatorAnswered?: boolean }) => Promise<void>;
+  onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string; moderatorAnswerText?: string; moderatorAnswerTextHi?: string; moderatorAnswerTextOr?: string; moderatorAnswered?: boolean }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
   onCreateCategory: (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => void;
   onFetchEvents: () => void;
@@ -116,6 +116,8 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // first time its box is touched, so re-renders from polling/SSE don't
   // clobber an in-progress, unsaved draft.
   const [answerDraftById, setAnswerDraftById] = useState<Record<string, string>>({});
+  const [answerDraftHiById, setAnswerDraftHiById] = useState<Record<string, string>>({});
+  const [answerDraftOrById, setAnswerDraftOrById] = useState<Record<string, string>>({});
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
   const [answerSavedId, setAnswerSavedId] = useState<string | null>(null);
 
@@ -348,11 +350,17 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   // --- Answer Later tab helpers ---
 
   const getAnswerDraft = (q: Question) => answerDraftById[q.id] ?? q.moderatorAnswerText ?? '';
+  const getAnswerDraftHi = (q: Question) => answerDraftHiById[q.id] ?? q.moderatorAnswerTextHi ?? '';
+  const getAnswerDraftOr = (q: Question) => answerDraftOrById[q.id] ?? q.moderatorAnswerTextOr ?? '';
 
   const saveAnswerDraft = async (q: Question) => {
     setSavingAnswerId(q.id);
     try {
-      await onEditQuestion(q.id, { moderatorAnswerText: getAnswerDraft(q) });
+      await onEditQuestion(q.id, {
+        moderatorAnswerText: getAnswerDraft(q),
+        moderatorAnswerTextHi: getAnswerDraftHi(q),
+        moderatorAnswerTextOr: getAnswerDraftOr(q)
+      });
       setAnswerSavedId(q.id);
       setTimeout(() => setAnswerSavedId(prev => (prev === q.id ? null : prev)), 2000);
     } catch {
@@ -367,16 +375,22 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   };
 
   /**
-   * Shares the question + drafted answer as one message, with the two
-   * halves clearly labeled (and bolded for WhatsApp's *asterisk* markup),
-   * via the device's native share sheet. navigator.share is mobile-first
-   * (and some desktop browsers); where it's unavailable this falls back to
-   * copying the same text to the clipboard instead of silently failing.
+   * Shares the question + drafted answer (English, plus Hindi/Odia when
+   * translated) as one message, each part clearly labeled (and bolded for
+   * WhatsApp's *asterisk* markup), via the device's native share sheet.
+   * navigator.share is mobile-first (and some desktop browsers); where it's
+   * unavailable this falls back to copying the same text to the clipboard
+   * instead of silently failing.
    */
   const shareAnswer = async (q: Question) => {
     await saveAnswerDraft(q);
     const draft = getAnswerDraft(q);
-    const message = `*Question:*\n${q.text}\n\n*Answer:*\n${draft || '(no answer written yet)'}`;
+    const draftHi = getAnswerDraftHi(q);
+    const draftOr = getAnswerDraftOr(q);
+    const parts = [`*Question:*\n${q.text}`, `*Answer:*\n${draft || '(no answer written yet)'}`];
+    if (draftHi.trim()) parts.push(`*हिंदी में उत्तर:*\n${draftHi.trim()}`);
+    if (draftOr.trim()) parts.push(`*ଓଡ଼ିଆରେ ଉତ୍ତର:*\n${draftOr.trim()}`);
+    const message = parts.join('\n\n');
     if (navigator.share) {
       try {
         await navigator.share({ text: message });
@@ -1634,12 +1648,41 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                         </span>
                       )}
                     </div>
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={getAnswerDraft(q)}
+                        onChange={(e) => setAnswerDraftById(d => ({ ...d, [q.id]: e.target.value }))}
+                        onBlur={() => saveAnswerDraft(q)}
+                        placeholder="Write the answer you'll send this person..."
+                        rows={3}
+                        className="flex-1 px-3 py-2.5 rounded-xl border border-divider text-sm text-primary bg-transparent outline-none focus:border-indigo-500 resize-none"
+                      />
+                      <TranslateButton
+                        fieldKey={`answer-${q.id}`}
+                        sourceText={getAnswerDraft(q)}
+                        setHi={(v) => setAnswerDraftHiById(d => ({ ...d, [q.id]: v }))}
+                        setOr={(v) => setAnswerDraftOrById(d => ({ ...d, [q.id]: v }))}
+                      />
+                    </div>
+                    {translateError?.field === `answer-${q.id}` && (
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                        <AlertCircle className="w-3.5 h-3.5" /> {translateError.message}
+                      </p>
+                    )}
                     <textarea
-                      value={getAnswerDraft(q)}
-                      onChange={(e) => setAnswerDraftById(d => ({ ...d, [q.id]: e.target.value }))}
+                      value={getAnswerDraftHi(q)}
+                      onChange={(e) => setAnswerDraftHiById(d => ({ ...d, [q.id]: e.target.value }))}
                       onBlur={() => saveAnswerDraft(q)}
-                      placeholder="Write the answer you'll send this person..."
-                      rows={3}
+                      placeholder="Hindi translation (optional -- click the translate icon above, or type your own)"
+                      rows={2}
+                      className="w-full px-3 py-2.5 rounded-xl border border-divider text-sm text-primary bg-transparent outline-none focus:border-indigo-500 resize-none"
+                    />
+                    <textarea
+                      value={getAnswerDraftOr(q)}
+                      onChange={(e) => setAnswerDraftOrById(d => ({ ...d, [q.id]: e.target.value }))}
+                      onBlur={() => saveAnswerDraft(q)}
+                      placeholder="Odia translation (optional -- click the translate icon above, or type your own)"
+                      rows={2}
                       className="w-full px-3 py-2.5 rounded-xl border border-divider text-sm text-primary bg-transparent outline-none focus:border-indigo-500 resize-none"
                     />
                     <div className="flex flex-wrap items-center gap-2">
