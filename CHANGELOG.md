@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-22] - Vote Results Stage: Option Photos, Big-Screen Layout
+
+- **Option photos (already uploaded via Manage Votings) now show on `/vote/stage`** next to each option's label and bar -- no server changes needed, the photo URL was already in every response shape, just wasn't being rendered on this one screen.
+- **Redesigned the projected-results layout to fill a projector-sized screen**: wider content column (`max-w-7xl` vs. the old `max-w-3xl`), much larger title/photos/bars/text throughout, and long or bilingual option labels now wrap onto multiple lines instead of being cut off with `...`.
+
 ## [2026-10-22] - Fixed Blank Category Badge; Auto-Classifier Confirmed Working After Billing Fix
 
 - **Fixed a blank/empty category badge** showing up as a styled-but-textless pill next to the event name on questions with no category. Fixed in all 5 places the same unconditional-badge pattern existed: Moderator screen question cards, Panel view ("now answering" spotlight and queue list), Stage view ("now answering" header and queue preview). Each badge now simply doesn't render when there's no category, instead of rendering empty.

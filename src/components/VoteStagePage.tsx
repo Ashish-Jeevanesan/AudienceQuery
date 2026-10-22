@@ -206,20 +206,28 @@ export const VoteStagePage: React.FC = () => {
           </button>
           <span className="text-xs font-mono text-muted uppercase tracking-wider">{projected.status === 'closed' ? 'Final Result' : 'Live'}</span>
         </header>
-        <main className="flex-1 flex flex-col items-center justify-center px-6 py-10 sm:px-12">
-          <h1 className="text-3xl sm:text-5xl font-bold text-center mb-10" style={{ fontFamily: 'Fraunces, serif' }}>{projected.question}</h1>
-          <div className="w-full max-w-3xl space-y-6">
+        <main className="flex-1 flex flex-col items-center justify-center px-8 py-8 sm:px-16 lg:px-24">
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold text-center mb-12 lg:mb-16" style={{ fontFamily: 'Fraunces, serif' }}>{projected.question}</h1>
+          <div className="w-full max-w-7xl space-y-8 lg:space-y-10">
             {[...projected.options].sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0)).map((o: VotingOption, i) => {
               const pct = Math.round(((o.voteCount || 0) / maxVotes) * 100);
               return (
-                <div key={o.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm sm:text-base font-bold">
-                    <span className="flex items-center gap-2">{i === 0 && (o.voteCount || 0) > 0 && <Trophy className="w-4 h-4 text-amber-500" />}{o.label}</span>
-                    <span className="font-mono">{o.voteCount || 0}</span>
+                <div key={o.id} className="space-y-2.5">
+                  <div className="flex items-start justify-between text-xl sm:text-2xl lg:text-3xl font-bold gap-4">
+                    <span className="flex items-center gap-4 lg:gap-5 min-w-0">
+                      {o.photoUrl && (
+                        <img src={o.photoUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full object-cover border-4 shrink-0" style={{ borderColor: `rgb(var(--border-strong))` }} />
+                      )}
+                      <span className="flex items-start gap-3 min-w-0">
+                        {i === 0 && (o.voteCount || 0) > 0 && <Trophy className="w-7 h-7 lg:w-8 lg:h-8 text-amber-500 shrink-0 mt-1" />}
+                        <span>{o.label}</span>
+                      </span>
+                    </span>
+                    <span className="font-mono shrink-0">{o.voteCount || 0}</span>
                   </div>
-                  <div className="h-8 sm:h-10 rounded-lg bg-surface-secondary overflow-hidden">
+                  <div className="h-10 sm:h-14 lg:h-16 rounded-xl bg-surface-secondary overflow-hidden">
                     <div
-                      className="h-full rounded-lg transition-all duration-700 ease-out"
+                      className="h-full rounded-xl transition-all duration-700 ease-out"
                       style={{ width: `${pct}%`, backgroundColor: BAR_COLORS[i % BAR_COLORS.length] }}
                     />
                   </div>
@@ -227,7 +235,7 @@ export const VoteStagePage: React.FC = () => {
               );
             })}
           </div>
-          <p className="mt-10 text-sm text-muted">{projected.totalVotes} total vote{projected.totalVotes === 1 ? '' : 's'}</p>
+          <p className="mt-12 lg:mt-16 text-lg sm:text-xl text-muted">{projected.totalVotes} total vote{projected.totalVotes === 1 ? '' : 's'}</p>
         </main>
       </div>
     );
