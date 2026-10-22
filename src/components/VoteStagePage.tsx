@@ -129,7 +129,7 @@ export const VoteStagePage: React.FC = () => {
   // anyone having to refresh it.
   useEffect(() => {
     if (!hasAccess) return;
-    const pollInterval = setInterval(fetchVotings, 8000);
+    const pollInterval = setInterval(fetchVotings, 5000);
     return () => clearInterval(pollInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess]);
