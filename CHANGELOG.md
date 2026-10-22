@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-22] - Vote Results Stage: Smoother Live Updates
+
+- **Bars now glide into their new rank instead of jumping** when a vote changes the order -- added Motion (Framer Motion, already a project dependency) `layout` animation to each option row, plus an eased width transition on the bar fill itself (previously a plain CSS transition, which doesn't animate position changes from re-sorting at all).
+- **A bar's color is now pinned to its option, not its current rank** -- previously color was assigned by sorted position, so two bars could visibly swap colors mid-move when they swapped rank; now the color stays put while the bar glides past it.
+- **Safety-net poll interval tightened from 8s to 5s** on `/vote/stage`, so an unattended projected display catches up to new votes a bit faster even if SSE doesn't reach it.
+
 ## [2026-10-22] - Vote Results Stage: Option Photos, Big-Screen Layout
 
 - **Option photos (already uploaded via Manage Votings) now show on `/vote/stage`** next to each option's label and bar -- no server changes needed, the photo URL was already in every response shape, just wasn't being rendered on this one screen.

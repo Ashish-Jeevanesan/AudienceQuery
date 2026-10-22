@@ -16,6 +16,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ShieldAlert, RefreshCw, Trophy, ExternalLink, LogOut } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import type { Voting, VotingOption } from '../types';
@@ -211,27 +212,45 @@ export const VoteStagePage: React.FC = () => {
           <div className="w-full max-w-7xl space-y-8 lg:space-y-10">
             {[...projected.options].sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0)).map((o: VotingOption, i) => {
               const pct = Math.round(((o.voteCount || 0) / maxVotes) * 100);
+              // Color is keyed to the option's original (unsorted) position,
+              // not its current rank -- so a bar's color stays fixed while it
+              // glides to a new spot, instead of swapping color mid-move.
+              const colorIndex = projected.options.findIndex(opt => opt.id === o.id);
               return (
-                <div key={o.id} className="space-y-2.5">
+                <motion.div key={o.id} layout transition={{ type: 'spring', stiffness: 300, damping: 32 }} className="space-y-2.5">
                   <div className="flex items-start justify-between text-xl sm:text-2xl lg:text-3xl font-bold gap-4">
                     <span className="flex items-center gap-4 lg:gap-5 min-w-0">
                       {o.photoUrl && (
                         <img src={o.photoUrl} alt="" className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full object-cover border-4 shrink-0" style={{ borderColor: `rgb(var(--border-strong))` }} />
                       )}
                       <span className="flex items-start gap-3 min-w-0">
-                        {i === 0 && (o.voteCount || 0) > 0 && <Trophy className="w-7 h-7 lg:w-8 lg:h-8 text-amber-500 shrink-0 mt-1" />}
+                        <AnimatePresence initial={false}>
+                          {i === 0 && (o.voteCount || 0) > 0 && (
+                            <motion.span
+                              key="trophy"
+                              initial={{ opacity: 0, scale: 0.6 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.6 }}
+                              className="shrink-0 mt-1"
+                            >
+                              <Trophy className="w-7 h-7 lg:w-8 lg:h-8 text-amber-500" />
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
                         <span>{o.label}</span>
                       </span>
                     </span>
                     <span className="font-mono shrink-0">{o.voteCount || 0}</span>
                   </div>
                   <div className="h-10 sm:h-14 lg:h-16 rounded-xl bg-surface-secondary overflow-hidden">
-                    <div
-                      className="h-full rounded-xl transition-all duration-700 ease-out"
-                      style={{ width: `${pct}%`, backgroundColor: BAR_COLORS[i % BAR_COLORS.length] }}
+                    <motion.div
+                      className="h-full rounded-xl"
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      style={{ backgroundColor: BAR_COLORS[colorIndex % BAR_COLORS.length] }}
                     />
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
