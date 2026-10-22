@@ -162,6 +162,7 @@ export const StageView: React.FC<StageViewProps> = ({
               <div className="flex items-center space-x-3">
                 {(() => {
                   const category = categories.find(c => c.id === currentAnswering.categoryId);
+                  if (!category && !currentAnswering.categoryName) return null;
                   return (
                     <span className={`px-4 py-1.5 rounded-xl text-sm font-extrabold border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
                       {category ? getLocalizedText(category.name, category.nameHi, category.nameOr, language) : currentAnswering.categoryName}
@@ -232,11 +233,13 @@ export const StageView: React.FC<StageViewProps> = ({
               const category = categories.find(c => c.id === q.categoryId);
               return (
                 <div key={q.id} className="rounded-xl p-3.5 border border-divider text-xs space-y-1.5 bg-surface shadow-sm">
-                  <div className="flex items-center">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
-                      {category ? getLocalizedText(category.name, category.nameHi, category.nameOr, language) : q.categoryName}
-                    </span>
-                  </div>
+                  {(category || q.categoryName) && (
+                    <div className="flex items-center">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getCategoryBadgeColor(category?.color || 'indigo')}`}>
+                        {category ? getLocalizedText(category.name, category.nameHi, category.nameOr, language) : q.categoryName}
+                      </span>
+                    </div>
+                  )}
                   <p className="font-medium line-clamp-2 text-secondary">
                     "{q.text}"
                   </p>

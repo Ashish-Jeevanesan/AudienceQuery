@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-22] - Fixed Blank Category Badge; Auto-Classifier Confirmed Working After Billing Fix
+
+- **Fixed a blank/empty category badge** showing up as a styled-but-textless pill next to the event name on questions with no category. Fixed in all 5 places the same unconditional-badge pattern existed: Moderator screen question cards, Panel view ("now answering" spotlight and queue list), Stage view ("now answering" header and queue preview). Each badge now simply doesn't render when there's no category, instead of rendering empty.
+- **The long-standing "auto-classifier always returns null" issue was never a code bug**: `src/classify.ts` already uses the correct `responseSchema`-constrained Gemini call, the correct `@google/genai` package, a real timeout, and has no leftover dead code -- all previously-suspected code bugs were already fixed at some point without the TODO being updated to say so. The real cause was the Gemini API account's prepaid credits being depleted (HTTP 402). **Confirmed resolved** after the account's billing was topped up: re-ran the classifier directly against real categories with multiple test questions and got correct results (e.g. a parenting question -> Parenting & Faith, a marriage question -> Marriage & Spirituality) across two full passes. TODO.md updated to close this out.
+
 ## [2026-10-22] - Export Questions to Excel/Word/PDF, with Working Hindi/Odia PDFs
 
 - **Three export buttons in the Moderator screen** (Excel/Word/PDF), exporting exactly whatever the current tab/search/category/event filters have showing -- no separate scope picker needed. Excel gets 4 columns (Question Number, Question, Asked By, Time Asked); Word and PDF are a bare numbered list of question text only, per the explicit request. Generation happens server-side (`POST /api/questions/export`, admin-gated) from the question list the client already has filtered, rather than the server re-deriving the same filter.

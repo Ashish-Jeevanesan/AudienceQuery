@@ -1495,9 +1495,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
                   <div className="space-y-2 flex-1">
                     
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold border ${getBadgeColor(category?.color || 'sky')}`}>
-                        {q.categoryName}
-                      </span>
+                      {q.categoryName && (
+                        <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold border ${getBadgeColor(category?.color || 'sky')}`}>
+                          {q.categoryName}
+                        </span>
+                      )}
 
                       {q.isPriority && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-slate-950">

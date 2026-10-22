@@ -132,9 +132,11 @@ export const PanelView: React.FC<PanelViewProps> = ({
 
               <div className="flex flex-wrap items-center justify-between gap-3 relative z-10">
                 <div className="flex items-center space-x-2">
-                  <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${getBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
-                    {currentAnswering.categoryName}
-                  </span>
+                  {currentAnswering.categoryName && (
+                    <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${getBadgeColor(categories.find(c => c.id === currentAnswering.categoryId)?.color || 'indigo')}`}>
+                      {currentAnswering.categoryName}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2 bg-surface-secondary px-3 py-1.5 rounded-xl border border-divider-strong text-xs font-mono font-bold" style={{ color: 'rgb(var(--primary))' }}>
@@ -223,9 +225,11 @@ export const PanelView: React.FC<PanelViewProps> = ({
 
                       <div className="space-y-2 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${getBadgeColor(category?.color || 'sky')}`}>
-                            {q.categoryName}
-                          </span>
+                          {q.categoryName && (
+                            <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${getBadgeColor(category?.color || 'sky')}`}>
+                              {q.categoryName}
+                            </span>
+                          )}
 
                           {q.isPriority && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold border cat-badge-amber">
