@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-22] - 10-Digit Phone Validation on the Vote Page
+
+- **The phone number field on `/vote` now requires exactly 10 digits**: input strips anything non-numeric and caps at 10 characters as you type, and submit blocks with a translated error (EN/HI/OR) if it's short. Placeholder updated from the old `+91 98765 43210` format to a plain `9876543210` to match.
+
 ## [2026-10-22] - Vote Results Stage: Smoother Live Updates
 
 - **Bars now glide into their new rank instead of jumping** when a vote changes the order -- added Motion (Framer Motion, already a project dependency) `layout` animation to each option row, plus an eased width transition on the bar fill itself (previously a plain CSS transition, which doesn't animate position changes from re-sorting at all).

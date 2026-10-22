@@ -65,6 +65,7 @@ export const VotePage: React.FC = () => {
     if (!selectedVoting || !selectedOption) return;
     if (!name.trim()) return setErrorMsg(t('vote.nameRequired'));
     if (!phone.trim()) return setErrorMsg(t('vote.phoneRequired'));
+    if (phone.length !== 10) return setErrorMsg(t('vote.phoneInvalid'));
     if (!dob) return setErrorMsg(t('vote.dobRequired'));
 
     setIsSubmitting(true);
@@ -236,7 +237,7 @@ export const VotePage: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('vote.phoneLabel')}</label>
-                    <input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('vote.phonePlaceholder')} maxLength={20} className="input-base w-full" autoComplete="tel" />
+                    <input type="tel" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder={t('vote.phonePlaceholder')} maxLength={10} className="input-base w-full" autoComplete="tel" />
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-bold" style={{ color: `rgb(var(--text-primary))` }}>{t('vote.dobLabel')}</label>
