@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Question, Category, ConferenceEvent, EventRecord, AppUser, UserRole, QuestionStatus } from '../types';
-import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks, Undo2, Clock, Share2, Check } from 'lucide-react';
+import { ShieldCheck, Send, CheckCircle, XCircle, Star, Edit3, Trash2, Search, Settings, Plus, MessageSquare, Tag, AlertCircle, CalendarDays, Users2, Radio, Languages, Loader2, Image, SlidersHorizontal, PauseCircle, PlayCircle, Vote as VoteIcon, ListChecks, Undo2, Clock, Share2, Check, FileSpreadsheet, FileText, FileDown } from 'lucide-react';
 import { ManageArtifactsDrawer } from './ManageArtifactsDrawer';
 import { VotingManagerDrawer } from './VotingManagerDrawer';
 import { VoteMonitorDrawer } from './VoteMonitorDrawer';
@@ -55,6 +55,7 @@ interface ModeratorViewProps {
   onUpdateStatus: (questionId: string, status: QuestionStatus, notes?: string) => void;
   onEditQuestion: (questionId: string, data: { text?: string; categoryId?: string; isPriority?: boolean; moderatorNotes?: string; moderatorAnswerText?: string; moderatorAnswerTextHi?: string; moderatorAnswerTextOr?: string; moderatorAnswered?: boolean }) => Promise<void>;
   onDeleteQuestion: (questionId: string) => void;
+  onExportQuestions: (format: 'excel' | 'word' | 'pdf', questions: Question[]) => Promise<void>;
   onCreateCategory: (data: { name: string; nameHi?: string; nameOr?: string; color: string; description?: string }) => void;
   onFetchEvents: () => void;
   onCreateEvent: (data: { title: string; titleHi?: string; titleOr?: string; subtitle?: string; subtitleHi?: string; subtitleOr?: string; allowAnonymous?: boolean; isAcceptingQuestions?: boolean; expiresAt?: string | null }) => Promise<void>;
@@ -85,6 +86,7 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   onUpdateStatus,
   onEditQuestion,
   onDeleteQuestion,
+  onExportQuestions,
   onCreateCategory,
   onFetchEvents,
   onCreateEvent,
@@ -120,6 +122,11 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
   const [answerDraftOrById, setAnswerDraftOrById] = useState<Record<string, string>>({});
   const [savingAnswerId, setSavingAnswerId] = useState<string | null>(null);
   const [answerSavedId, setAnswerSavedId] = useState<string | null>(null);
+
+  // Export (Excel/Word/PDF) -- always exports exactly `filtered`, i.e.
+  // whatever the current tab/search/category/event filters are showing.
+  const [exportingFormat, setExportingFormat] = useState<'excel' | 'word' | 'pdf' | null>(null);
+  const [exportError, setExportError] = useState('');
 
   // Edit Modal State for editing a specific question
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -404,6 +411,18 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
       } catch {
         window.alert('Unable to share or copy automatically. Please copy the question and answer manually.');
       }
+    }
+  };
+
+  const handleExport = async (format: 'excel' | 'word' | 'pdf') => {
+    setExportError('');
+    setExportingFormat(format);
+    try {
+      await onExportQuestions(format, filtered);
+    } catch (err: any) {
+      setExportError(err?.message || 'Export failed. Please try again.');
+    } finally {
+      setExportingFormat(null);
     }
   };
 
@@ -1402,6 +1421,45 @@ export const ModeratorView: React.FC<ModeratorViewProps> = ({
             </select>
           </div>
 
+        </div>
+
+        {/* Export -- always exports exactly the `filtered` list above (this
+            tab + search + category + event filters), so "export what I'm
+            looking at" needs no extra scope picker. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-muted">Export {filtered.length} question{filtered.length === 1 ? '' : 's'}:</span>
+          <button
+            onClick={() => handleExport('excel')}
+            disabled={exportingFormat !== null || filtered.length === 0}
+            className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition disabled:opacity-60"
+            title="Excel: question number, question, asked by, time asked"
+          >
+            {exportingFormat === 'excel' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            <span>Excel</span>
+          </button>
+          <button
+            onClick={() => handleExport('word')}
+            disabled={exportingFormat !== null || filtered.length === 0}
+            className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition disabled:opacity-60"
+            title="Word: questions listed one by one, text only"
+          >
+            {exportingFormat === 'word' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+            <span>Word</span>
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            disabled={exportingFormat !== null || filtered.length === 0}
+            className="px-3 py-1.5 rounded-xl bg-surface-secondary text-secondary hover:bg-surface-hover border border-divider font-bold text-xs flex items-center space-x-1.5 transition disabled:opacity-60"
+            title="PDF: questions listed one by one, text only"
+          >
+            {exportingFormat === 'pdf' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+            <span>PDF</span>
+          </button>
+          {exportError && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+              <AlertCircle className="w-3.5 h-3.5" /> {exportError}
+            </span>
+          )}
         </div>
 
       </div>

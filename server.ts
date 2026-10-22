@@ -11,6 +11,10 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import { translate } from 'google-translate-api-x';
+import ExcelJS from 'exceljs';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import PDFDocument from 'pdfkit';
+import { NOTO_SANS_DEVANAGARI_BASE64, NOTO_SANS_ORIYA_BASE64 } from './src/pdfFonts.js';
 import { Question, Category, ConferenceEvent, EventRecord, QuestionStatus, UserRole, AppUser, Complaint, COMPLAINT_CATEGORIES } from './src/types.js';
 import { logger } from './src/logger.js';
 import { classifyQuestion } from './src/classify.js';
@@ -1199,6 +1203,129 @@ app.delete('/api/questions/:id', requireAdmin, async (req, res) => {
   } catch (error: any) {
     console.error('Error deleting question from Supabase:', error);
     res.status(500).json({ error: error.message || 'Failed to delete question' });
+  }
+});
+
+// Devanagari/Oriya fonts for the PDF export -- decoded once at module load
+// from src/pdfFonts.ts (see that file for why they're embedded rather than
+// read from a loose file on disk). PDFKit's built-in standard fonts only
+// cover Latin text; without these, Hindi/Odia question text renders as
+// garbled mojibake (confirmed against a real export before this was added).
+const notoSansDevanagariBuffer = Buffer.from(NOTO_SANS_DEVANAGARI_BASE64, 'base64');
+const notoSansOriyaBuffer = Buffer.from(NOTO_SANS_ORIYA_BASE64, 'base64');
+
+/**
+ * Picks ONE font for an entire line based on whichever script (Devanagari
+ * or Oriya) has the most characters in it -- not a per-character font
+ * switch. That's a deliberate choice: PDFKit positions each font call's
+ * glyphs using that font's own ascent, so switching fonts mid-line (tried
+ * first) made Devanagari/Oriya text visibly jump off the Latin baseline.
+ * One font per line keeps every line's baseline consistent.
+ * KNOWN LIMITATION: Noto Sans Devanagari's complete release includes full
+ * Latin coverage (so a Hindi line with English digits/punctuation renders
+ * perfectly), but Noto Sans Oriya's does not include Latin *letters* (only
+ * digits/punctuation) -- an Oriya-dominant line that also contains actual
+ * English words (e.g. "Sir ... Question ...") will show boxes for just
+ * those words. Confirmed against a real export. A pure-English or
+ * pure-Hindi or pure-Odia line always renders correctly either way.
+ */
+function dominantPdfFontFor(line: string): 'Helvetica' | 'Devanagari' | 'Oriya' {
+  let devanagariCount = 0;
+  let oriyaCount = 0;
+  for (const ch of line) {
+    const code = ch.codePointAt(0) || 0;
+    if (code >= 0x0900 && code <= 0x097F) devanagariCount++;
+    else if (code >= 0x0B00 && code <= 0x0B7F) oriyaCount++;
+  }
+  if (devanagariCount === 0 && oriyaCount === 0) return 'Helvetica';
+  return devanagariCount >= oriyaCount ? 'Devanagari' : 'Oriya';
+}
+
+/**
+ * @route POST /api/questions/export
+ * @description Exports a moderator-supplied list of questions (exactly
+ * whatever the Moderator screen currently has filtered/sorted -- the client
+ * sends that list rather than this endpoint re-deriving its own filter, so
+ * "export what I'm looking at" is correct by construction) as an Excel,
+ * Word, or PDF file. Excel gets a 4-column table (number/question/asked
+ * by/time); Word and PDF are deliberately bare -- a numbered list of
+ * question text only, nothing else, per the explicit request.
+ * SECURITY: Requires admin authentication via Authorization: Bearer <admin-token> header.
+ */
+app.post('/api/questions/export', requireAdmin, async (req, res) => {
+  const { format, questions: exportQuestions } = req.body as {
+    format?: 'excel' | 'word' | 'pdf';
+    questions?: { text: string; authorName: string; createdAt: string }[];
+  };
+
+  if (!format || !['excel', 'word', 'pdf'].includes(format)) {
+    return res.status(400).json({ error: 'Invalid or missing format' });
+  }
+  if (!Array.isArray(exportQuestions)) {
+    return res.status(400).json({ error: 'Missing questions array' });
+  }
+
+  try {
+    if (format === 'excel') {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Questions');
+      sheet.columns = [
+        { header: 'Question Number', key: 'num', width: 16 },
+        { header: 'Question', key: 'question', width: 80 },
+        { header: 'Asked By', key: 'askedBy', width: 24 },
+        { header: 'Time Asked', key: 'time', width: 22 }
+      ];
+      exportQuestions.forEach((q, i) => {
+        sheet.addRow({ num: i + 1, question: q.text, askedBy: q.authorName, time: new Date(q.createdAt).toLocaleString() });
+      });
+      sheet.getRow(1).font = { bold: true };
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="questions.xlsx"');
+      await workbook.xlsx.write(res);
+      return res.end();
+    }
+
+    if (format === 'word') {
+      const doc = new Document({
+        sections: [{
+          children: exportQuestions.map((q, i) => new Paragraph({
+            children: [new TextRun(`${i + 1}. ${q.text}`)],
+            spacing: { after: 200 }
+          }))
+        }]
+      });
+      const buffer = await Packer.toBuffer(doc);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', 'attachment; filename="questions.docx"');
+      return res.send(buffer);
+    }
+
+    // format === 'pdf'
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="questions.pdf"');
+    const pdfDoc = new PDFDocument({ margin: 50 });
+    pdfDoc.registerFont('Devanagari', notoSansDevanagariBuffer);
+    pdfDoc.registerFont('Oriya', notoSansOriyaBuffer);
+    pdfDoc.pipe(res);
+    exportQuestions.forEach((q, i) => {
+      // A question's text can itself contain literal newlines -- render
+      // each as its own PDFKit line (each gets its own dominant-font pick)
+      // rather than one `.text()` call, which would otherwise collapse
+      // them or pick a single font for the whole multi-line block.
+      const lines = q.text.split('\n');
+      lines.forEach((line, lineIndex) => {
+        const fullLine = (lineIndex === 0 ? `${i + 1}. ` : '') + line;
+        pdfDoc.font(dominantPdfFontFor(fullLine)).fontSize(12).text(fullLine);
+      });
+      pdfDoc.moveDown(0.5);
+    });
+    pdfDoc.end();
+  } catch (error: any) {
+    logger.error('Error exporting questions', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message || 'Failed to export questions' });
+    }
   }
 });
 

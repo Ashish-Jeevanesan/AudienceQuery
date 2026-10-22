@@ -98,6 +98,7 @@ export default function App() {
     updateStatus,
     editQuestion,
     deleteQuestion,
+    exportQuestions,
     createCategory,
     fetchEvents,
     createEvent,
@@ -269,6 +270,7 @@ export default function App() {
                 onUpdateStatus={updateStatus}
                 onEditQuestion={editQuestion}
                 onDeleteQuestion={deleteQuestion}
+                onExportQuestions={exportQuestions}
                 onCreateCategory={createCategory}
                 onFetchEvents={fetchEvents}
                 onCreateEvent={createEvent}

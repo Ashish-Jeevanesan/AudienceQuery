@@ -525,6 +525,43 @@ export function useRealTimeQnA(joinCode?: string) {
     });
   }, [adminFetch, runTracked]);
 
+  /**
+   * Exports exactly the questions passed in -- the Moderator screen sends
+   * its own already-filtered/sorted `filtered` array, so "export what I'm
+   * looking at" is correct by construction rather than this hook needing
+   * to re-derive the same filter server-side. Downloads the file by
+   * creating a temporary object URL, same technique as a client-generated
+   * blob, even though the bytes actually come from the server.
+   */
+  const exportQuestions = useCallback(async (format: 'excel' | 'word' | 'pdf', questionsToExport: Question[]) => {
+    return runTracked(async () => {
+      try {
+        const res = await adminFetch('/api/questions/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            format,
+            questions: questionsToExport.map(q => ({ text: q.text, authorName: q.authorName, createdAt: q.createdAt }))
+          })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Unable to export questions');
+        const blob = await res.blob();
+        const extension = format === 'excel' ? 'xlsx' : format === 'word' ? 'docx' : 'pdf';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `questions-${new Date().toISOString().slice(0, 10)}.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Export error:', err);
+        throw err;
+      }
+    });
+  }, [adminFetch, runTracked]);
+
   const resetDemoData = useCallback(async () => {
     return runTracked(async () => {
       try {
@@ -664,6 +701,7 @@ export function useRealTimeQnA(joinCode?: string) {
     updateStatus,
     editQuestion,
     deleteQuestion,
+    exportQuestions,
     createCategory,
     fetchEvents,
     createEvent,
