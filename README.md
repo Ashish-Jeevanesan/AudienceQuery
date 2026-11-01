@@ -202,6 +202,7 @@ The Express server provides a REST API and a Server-Sent Events (SSE) stream.
 -   `GET /api/logs`: (Admin only) Retrieves application logs.
 -   `POST /api/reset`: (Admin only) DESTRUCTIVE. Resets all questions and categories.
 
+
 ## License
 
 AudienceQuery is open-source software licensed under the
