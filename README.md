@@ -201,3 +201,14 @@ The Express server provides a REST API and a Server-Sent Events (SSE) stream.
 -   `POST /api/translate`: (Admin/Mod) Gets draft translations for text.
 -   `GET /api/logs`: (Admin only) Retrieves application logs.
 -   `POST /api/reset`: (Admin only) DESTRUCTIVE. Resets all questions and categories.
+
+## License
+
+AudienceQuery is open-source software licensed under the
+[MIT License](LICENSE).
+
+Copyright (c) 2026 Ashish Jeevanesan.
+
+You are free to use, modify, distribute, and deploy
+AudienceQuery for personal or commercial purposes,
+subject to the MIT License terms.
